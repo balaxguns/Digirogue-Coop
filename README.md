@@ -1,0 +1,2 @@
+# Digirogue-Coop
+Digimon Roguelike

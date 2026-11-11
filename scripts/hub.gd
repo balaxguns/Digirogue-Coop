@@ -77,7 +77,7 @@ func _ready() -> void:
 		tabs.add_child(sc)
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		v.add_theme_constant_override("separation", 14)
+		v.add_theme_constant_override("separation", 8)
 		sc.add_child(v)
 		pages[n] = v
 	build_all()
@@ -108,12 +108,12 @@ func _label(parent: Node, content: String, font_size: int = 15, color: Color = W
 func _card(parent: Node, title: String, accent: Color = CYAN) -> VBoxContainer:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel(Color("#102b5be8"), accent, 2, 15))
+	panel.add_theme_stylebox_override("panel", _panel(Color("#102b5be8"), accent, 2, 9))
 	parent.add_child(panel)
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
+	content.add_theme_constant_override("separation", 6)
 	panel.add_child(content)
-	_label(content, title, 18, accent)
+	_label(content, title, 16, accent)
 	return content
 
 func _section(parent: Node, title: String, description: String) -> void:
@@ -155,11 +155,12 @@ func build_digi() -> void:
 	var detail := _card(v, "◈  %s  //  %s CLASS" % [r.stages[1], r.cls], GOLD)
 	_label(detail, "ATTRIBUTE  %s     •     TYPE  %s     •     DAMAGE  %s" % [r.attr, r.type, "Intelligence" if Data.line_scaling(sel) == "int" else "Attack"], 14, WHITE)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 18)
+	row.add_theme_constant_override("separation", 10)
 	detail.add_child(row)
-	_label(row, "VIEW DIGIVOLUTION STAGE", 14, CYAN)
+	_label(row, "STAGE", 13, CYAN)
 	var stage_picker := OptionButton.new()
-	stage_picker.custom_minimum_size = Vector2(310, 42)
+	stage_picker.custom_minimum_size = Vector2(220, 34)
+	stage_picker.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	for stage in 5:
 		stage_picker.add_item("%s  //  %s" % [r.stages[stage], TIERS[stage]], stage)
 	stage_picker.select(viewed_stage)
@@ -191,16 +192,23 @@ func _update_stage_details() -> void:
 	else:
 		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
 		for k in mini(3, moves.size()):
-			var move_card := _card(stage_info, kinds[k] + "   •   " + str(moves[k][0]), Color("#8bcfff"))
-			_label(move_card, str(moves[k][1]), 14, WHITE)
+			var move_row := HBoxContainer.new()
+			move_row.add_theme_constant_override("separation", 12)
+			stage_info.add_child(move_row)
+			var move_name := _label(move_row, kinds[k] + "  •  " + str(moves[k][0]), 13, CYAN)
+			move_name.custom_minimum_size.x = 250
+			_label(move_row, str(moves[k][1]), 13, WHITE)
 
 # EQUIPMENT
 func build_equip() -> void:
 	var v := page("Equipment")
 	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
-	var summary := _card(v, "LOADOUT STATUS  //  %d / 3 EQUIPPED" % Save.equipped.size(), GOLD)
-	_label(summary, "COLLECTION  %d ITEMS    •    EQUIPMENT PERSISTS BETWEEN EXPEDITIONS" % Save.owned.size(), 14, MUTED)
-	var g := _grid(v, 2)
+	var summary := HBoxContainer.new()
+	summary.add_theme_constant_override("separation", 18)
+	v.add_child(summary)
+	_label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)
+	_label(summary, "COLLECTION  %d  •  PERMANENT UPGRADES" % Save.owned.size(), 13, MUTED)
+	var g := _grid(v, 3)
 	var items: Array = Save.owned.duplicate()
 	items.sort_custom(func(a, b): return Data.equip[a.id].rar > Data.equip[b.id].rar)
 	if items.is_empty():
@@ -211,9 +219,9 @@ func build_equip() -> void:
 		var b := Button.new()
 		b.toggle_mode = true
 		b.button_pressed = equipped
-		b.text = "%s  •  %s\n%s\n%s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "IN VAULT", d.name, d.desc]
+		b.text = "%s  •  %s\n%s  —  %s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "AVAILABLE", d.name, d.desc]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(250, 98)
+		b.custom_minimum_size = Vector2(210, 70)
 		var uid: int = int(o.u)
 		b.pressed.connect(func():
 			if Save.equipped.has(uid):

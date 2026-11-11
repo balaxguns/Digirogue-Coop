@@ -326,7 +326,12 @@ func fmt(t: float) -> String:
 # ------------------------------------------------------------------ input
 func _unhandled_input(ev: InputEvent) -> void:
 	if R.over: return
-	if ev.is_action_pressed("inventory"): hud.toggle_menu(0)
+	if ev.is_action_pressed("inventory") or (ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_ESCAPE):
+		hud.toggle_menu(0)
+		get_viewport().set_input_as_handled()
+		return
+	if hud.menu_shell.visible:
+		return
 	if ev.is_action_pressed("digivolve") and Data.stage_for_level(P.lv) > P.stage:
 		P.stage += 1
 		recalc()
@@ -340,8 +345,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if ev.keycode == KEY_L and P.lv < 15:
 			P.xp = Data.xp_needed(P.lv)
 			gain(0.0)
-		elif ev.keycode == KEY_ESCAPE:
-			hud.toggle_menu(0)
 
 # ------------------------------------------------------------------ helpers
 func sv() -> float:  # the stat this line scales with

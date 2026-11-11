@@ -70,25 +70,25 @@ func _begin_effect(b: Button) -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color.TRANSPARENT
 	style.border_color = GOLD
-	style.set_border_width_all(4)
+	style.set_border_width_all(5)
 	style.set_corner_radius_all(8)
 	outline.add_theme_stylebox_override("panel", style)
 	overlay.add_child(outline)
 	var tweens: Array = []
 	for side in 2:
-		for i in 4:
+		for i in 8:
 			var pixel := ColorRect.new()
 			pixel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			pixel.color = GOLD if i % 2 == 0 else Color("#fff3a1")
-			pixel.size = Vector2(8, 8)
+			pixel.size = Vector2(5 + (i % 3) * 2, 5 + (i % 3) * 2)
 			var x := b.position.x - 19.0 - float(i % 2) * 7.0 if side == 0 else b.position.x + b.size.x + 11.0 + float(i % 2) * 7.0
-			var origin := Vector2(x, b.position.y + 12.0 + float(i) * 13.0)
+			var origin := Vector2(x, b.position.y + 12.0 + float(i % 5) * 11.0)
 			pixel.position = origin
 			overlay.add_child(pixel)
 			var tw := create_tween().set_loops()
-			tw.tween_property(pixel, "position", origin + Vector2(0, -14), 0.72).from(origin)
+			tw.tween_property(pixel, "position", origin + Vector2(0, -16), 0.72).from(origin)
 			tw.parallel().tween_property(pixel, "modulate:a", 0.0, 0.72).from(1.0)
-			tw.tween_interval(0.12 + float(i) * 0.08)
+			tw.tween_interval(0.10 + float(i % 4) * 0.06)
 			tweens.append(tw)
 	active_effects[b] = {"overlay": overlay, "tweens": tweens}
 

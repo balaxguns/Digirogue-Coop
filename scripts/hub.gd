@@ -11,9 +11,11 @@ var drasil: OptionButton
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_apply_ui_theme()
 	sel = Run.line
 	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_theme_constant_override("separation", 14)
 	add_child(root)
 	var top := HBoxContainer.new()
 	root.add_child(top)
@@ -21,6 +23,7 @@ func _ready() -> void:
 	t.text = "Mallow  (a pocket dimension where time does not exist)"
 	t.add_theme_font_size_override("font_size", 22)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.add_theme_color_override("font_color", Color("#ffcf36"))
 	top.add_child(t)
 	core_lbl = Label.new()
 	top.add_child(core_lbl)
@@ -37,6 +40,7 @@ func _ready() -> void:
 		Run.last_result = {}
 	tabs = TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_theme_stylebox_override("panel", _panel(Color("#10224a"), Color("#e9b92e"), 2))
 	root.add_child(tabs)
 	for n in ["Mercenary Digimon", "Equipment", ".mon Files", "Expedition"]:
 		var sc := ScrollContainer.new()
@@ -178,3 +182,37 @@ func start() -> void:
 	Run.speed = 1.0
 	Run.xpm = 1.0
 	get_tree().change_scene_to_file("res://scenes/run.tscn")
+
+func _panel(fill: Color, edge: Color, border_size: int) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = edge
+	box.set_border_width_all(border_size)
+	box.set_corner_radius_all(9)
+	box.set_content_margin_all(10)
+	return box
+
+func _apply_ui_theme() -> void:
+	var th := Theme.new()
+	var normal := _panel(Color("#173b79"), Color("#477ab7"), 1)
+	var hover := _panel(Color("#2158a0"), Color("#ffcf36"), 3)
+	var selected := _panel(Color("#123566"), Color("#ffcf36"), 2)
+	th.set_stylebox("normal", "Button", normal)
+	th.set_stylebox("hover", "Button", hover)
+	th.set_stylebox("pressed", "Button", selected)
+	th.set_stylebox("focus", "Button", _panel(Color.TRANSPARENT, Color("#ffcf36"), 2))
+	th.set_stylebox("disabled", "Button", _panel(Color("#273550"), Color("#475574"), 1))
+	th.set_color("font_color", "Button", Color("#fff1bb"))
+	th.set_color("font_hover_color", "Button", Color("#ffcf36"))
+	th.set_color("font_pressed_color", "Button", Color("#ffcf36"))
+	th.set_color("font_color", "Label", Color("#e9f1ff"))
+	th.set_stylebox("tab_selected", "TabContainer", selected)
+	th.set_stylebox("tab_hovered", "TabContainer", hover)
+	th.set_stylebox("tab_unselected", "TabContainer", normal)
+	th.set_color("font_selected_color", "TabContainer", Color("#ffcf36"))
+	theme = th
+	var bg := ColorRect.new()
+	bg.color = Color("#0b1730")
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)

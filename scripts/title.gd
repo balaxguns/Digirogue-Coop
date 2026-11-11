@@ -22,7 +22,7 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 13)
 	center.add_child(v)
 	var logo := TextureRect.new()
-	logo.texture = load("res://assets/digirogue_logo.svg")
+	logo.texture = load("res://assets/digirogue_title_art.png") if ResourceLoader.exists("res://assets/digirogue_title_art.png") else load("res://assets/digirogue_logo.svg")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.custom_minimum_size = Vector2(580, 220)

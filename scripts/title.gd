@@ -58,18 +58,20 @@ func _process(_delta: float) -> void:
 func _begin_effect(b: Button) -> void:
 	if active_effects.has(b):
 		return
-	# Draw above the full-screen art, independent of button clipping.
+	# Attach the visual effect to the button itself so it cannot drift
+	# away from the hitbox when the window is resized or scaled.
 	var overlay := Control.new()
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(overlay)
+	overlay.clip_contents = false
+	b.add_child(overlay)
 	# Trace the six-sided beveled button silhouette instead of a rectangle.
 	# All positions scale with the actual button dimensions.
-	var x0: float = b.position.x
-	var y0: float = b.position.y
+	var x0: float = 0.0
+	var y0: float = 0.0
 	var w: float = b.size.x
 	var h: float = b.size.y
-	var inset: float = minf(h * 0.26, w * 0.06)
+	var inset: float = h * 0.42
 	var edge: float = h * 0.08
 	var corners := PackedVector2Array([
 		Vector2(x0 + inset, y0 + edge),
@@ -82,12 +84,14 @@ func _begin_effect(b: Button) -> void:
 	])
 	var glow := Line2D.new()
 	glow.points = corners
+	glow.closed = true
 	glow.width = 15.0
 	glow.default_color = Color("#ffbd26", 0.32)
 	glow.antialiased = true
 	overlay.add_child(glow)
 	var outline := Line2D.new()
 	outline.points = corners
+	outline.closed = true
 	outline.width = 8.0
 	outline.default_color = GOLD
 	outline.antialiased = true
@@ -99,8 +103,8 @@ func _begin_effect(b: Button) -> void:
 			pixel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			pixel.color = GOLD if i % 2 == 0 else Color("#fff3a1")
 			pixel.size = Vector2(5 + (i % 3) * 2, 5 + (i % 3) * 2)
-			var x := b.position.x - 19.0 - float(i % 2) * 7.0 if side == 0 else b.position.x + b.size.x + 11.0 + float(i % 2) * 7.0
-			var origin := Vector2(x, b.position.y + 12.0 + float(i % 5) * 11.0)
+			var x := -19.0 - float(i % 2) * 7.0 if side == 0 else b.size.x + 11.0 + float(i % 2) * 7.0
+			var origin := Vector2(x, 12.0 + float(i % 5) * 11.0)
 			pixel.position = origin
 			overlay.add_child(pixel)
 			var tw := create_tween().set_loops()

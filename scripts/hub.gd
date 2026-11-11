@@ -224,12 +224,18 @@ func _equipment_category(fx: Dictionary) -> String:
 func build_equip() -> void:
 	var v := page("Equipment")
 	_section(v, "02  //  EQUIPMENT VAULT", "Permanent upgrades  •  Choose a category and equip up to three items.")
-	var summary := HFlowContainer.new()
-	summary.add_theme_constant_override("h_separation", 24)
-	summary.add_theme_constant_override("v_separation", 6)
+	var summary := HBoxContainer.new()
+	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary.add_theme_constant_override("separation", 22)
 	v.add_child(summary)
-	_label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)
-	_label(summary, "OWNED  %d" % Save.owned.size(), 14, MUTED)
+	var equipped_count := _label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)
+	equipped_count.custom_minimum_size.x = 180
+	equipped_count.autowrap_mode = TextServer.AUTOWRAP_OFF
+	equipped_count.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var owned_count := _label(summary, "OWNED  %d" % Save.owned.size(), 14, MUTED)
+	owned_count.custom_minimum_size.x = 140
+	owned_count.autowrap_mode = TextServer.AUTOWRAP_OFF
+	owned_count.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var filter_row := HFlowContainer.new()
 	filter_row.add_theme_constant_override("h_separation", 8)
 	filter_row.add_theme_constant_override("v_separation", 8)

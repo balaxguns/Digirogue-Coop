@@ -18,9 +18,9 @@ func _ready() -> void:
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(art)
 	_add_menu_button("Start Game", Rect2(550, 544, 565, 78), func(): get_tree().change_scene_to_file("res://scenes/hub.tscn"))
-	_add_menu_button("Multiplayer", Rect2(558, 634, 555, 72), Callable(), true)
-	_add_menu_button("Settings", Rect2(558, 712, 555, 73), func(): settings_panel.visible = not settings_panel.visible)
-	_add_menu_button("Quit Game", Rect2(558, 792, 555, 77), func(): get_tree().quit())
+	_add_menu_button("Multiplayer", Rect2(558, 636, 555, 72), Callable(), true)
+	_add_menu_button("Settings", Rect2(558, 714, 555, 73), func(): settings_panel.visible = not settings_panel.visible)
+	_add_menu_button("Quit Game", Rect2(558, 794, 555, 77), func(): get_tree().quit())
 	_create_settings()
 
 func _add_menu_button(_caption: String, bounds: Rect2, action: Callable, unavailable: bool = false) -> void:

@@ -41,12 +41,12 @@ func _ready() -> void:
 	header.add_theme_stylebox_override("panel", _panel(Color("#0c2452ee"), CYAN, 2, 14))
 	root.add_child(header)
 	header.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	var top := HBoxContainer.new()
+	var top := HFlowContainer.new()
 	top.add_theme_constant_override("separation", 20)
 	header.add_child(top)
 	var heading := VBoxContainer.new()
+	heading.custom_minimum_size.x = 360
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	heading.size_flags_stretch_ratio = 3.0
 	top.add_child(heading)
 	_label(heading, "MALLOW  //  COMMAND NEXUS", 27, GOLD)
 	_label(heading, "DIGITAL WORLD  /  POCKET DIMENSION  /  EXPEDITION PREPARATION", 12, MUTED)
@@ -73,7 +73,8 @@ func _ready() -> void:
 	for n in ["Mercenary Digimon", "Equipment", ".mon Files", "Expedition"]:
 		var sc := ScrollContainer.new()
 		sc.name = n
-		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tabs.add_child(sc)
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -120,11 +121,12 @@ func _section(parent: Node, title: String, description: String) -> void:
 	var header := _card(parent, title, GOLD)
 	_label(header, description, 14, MUTED)
 
-func _grid(parent: Node, cols: int) -> GridContainer:
-	var g := GridContainer.new()
-	g.columns = cols
-	g.add_theme_constant_override("h_separation", 12)
-	g.add_theme_constant_override("v_separation", 12)
+func _grid(parent: Node, cols: int) -> HFlowContainer:
+	# Flow cards onto additional rows instead of forcing the whole tab wider.
+	var g := HFlowContainer.new()
+	g.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	g.add_theme_constant_override("h_separation", 10)
+	g.add_theme_constant_override("v_separation", 10)
 	parent.add_child(g)
 	return g
 
@@ -154,8 +156,8 @@ func build_digi() -> void:
 	var r: Dictionary = Data.ROSTER[sel]
 	var detail := _card(v, "◈  %s  //  %s CLASS" % [r.stages[1], r.cls], GOLD)
 	_label(detail, "ATTRIBUTE  %s     •     TYPE  %s     •     DAMAGE  %s" % [r.attr, r.type, "Intelligence" if Data.line_scaling(sel) == "int" else "Attack"], 14, WHITE)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 10)
 	detail.add_child(row)
 	_label(row, "STAGE", 13, CYAN)
 	var stage_picker := OptionButton.new()
@@ -192,18 +194,18 @@ func _update_stage_details() -> void:
 	else:
 		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
 		for k in mini(3, moves.size()):
-			var move_row := HBoxContainer.new()
+			var move_row := HFlowContainer.new()
 			move_row.add_theme_constant_override("separation", 12)
 			stage_info.add_child(move_row)
 			var move_name := _label(move_row, kinds[k] + "  •  " + str(moves[k][0]), 13, CYAN)
-			move_name.custom_minimum_size.x = 250
+			move_name.custom_minimum_size.x = 180
 			_label(move_row, str(moves[k][1]), 13, WHITE)
 
 # EQUIPMENT
 func build_equip() -> void:
 	var v := page("Equipment")
 	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
-	var summary := HBoxContainer.new()
+	var summary := HFlowContainer.new()
 	summary.add_theme_constant_override("separation", 18)
 	v.add_child(summary)
 	_label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)

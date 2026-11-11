@@ -1,59 +1,79 @@
 extends Control
-## Mallow, the hub, with clickable tabs. All UI is built in code.
+## Mallow command nexus. Gameplay data and saves are unchanged.
+const GOLD := Color("#ffcf36")
+const CYAN := Color("#62d7ff")
+const WHITE := Color("#ecf6ff")
+const MUTED := Color("#a4bad9")
 const STAT_NAMES := {"def": "Defense", "int": "Intelligence", "atk": "Attack", "wis": "Wisdom", "hp": "Max HP", "spd": "Move speed"}
 const TIERS := ["In-Training (Lv 1)", "Rookie (Lv 3)", "Champion (Lv 6)", "Ultimate (Lv 12)", "Mega (Lv 15)"]
-var sel := 2
+var sel: int = 2
+var viewed_stage: int = 1
+var selected_mon: int = -1
 var tabs: TabContainer
-var pages := {}
-var mon_info: Label
+var pages: Dictionary = {}
 var core_lbl: Label
 var drasil: OptionButton
+var mon_info: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_apply_ui_theme()
-	sel = Run.line
+	sel = clampi(Run.line, 0, maxi(0, Data.ROSTER.size() - 1))
+	selected_mon = sel
+	var bg := Control.new()
+	bg.set_script(load("res://scripts/hub_data_stream.gd"))
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	var margins := MarginContainer.new()
+	margins.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margins.add_theme_constant_override("margin_left", 22)
+	margins.add_theme_constant_override("margin_right", 22)
+	margins.add_theme_constant_override("margin_top", 18)
+	margins.add_theme_constant_override("margin_bottom", 18)
+	add_child(margins)
 	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 14)
-	add_child(root)
+	root.add_theme_constant_override("separation", 12)
+	margins.add_child(root)
+	var header := PanelContainer.new()
+	header.add_theme_stylebox_override("panel", _panel(Color("#0c2452ee"), CYAN, 2, 14))
+	root.add_child(header)
 	var top := HBoxContainer.new()
-	root.add_child(top)
-	var t := Label.new()
-	t.text = "Mallow  (a pocket dimension where time does not exist)"
-	t.add_theme_font_size_override("font_size", 22)
-	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	t.add_theme_color_override("font_color", Color("#ffcf36"))
-	top.add_child(t)
-	core_lbl = Label.new()
-	top.add_child(core_lbl)
+	top.add_theme_constant_override("separation", 20)
+	header.add_child(top)
+	var heading := VBoxContainer.new()
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(heading)
+	_label(heading, "MALLOW  //  COMMAND NEXUS", 27, GOLD)
+	_label(heading, "DIGITAL WORLD  /  POCKET DIMENSION  /  EXPEDITION PREPARATION", 12, MUTED)
+	core_lbl = _label(top, "", 18, GOLD)
 	var back := Button.new()
-	back.text = "Title screen"
+	back.text = "← TITLE SCREEN"
+	back.custom_minimum_size = Vector2(160, 48)
 	back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
 	top.add_child(back)
 	if not Run.last_result.is_empty():
 		var r: Dictionary = Run.last_result
-		var l := Label.new()
-		l.text = "%s: reached Lv %d as %s, nights cleared %d/2, Digicore earned %d, equipment: %s" % ["EXPEDITION COMPLETE" if r.win else "EXPEDITION FAILED", r.lv, r.name, r.cleared, r.core, ", ".join(PackedStringArray(r.got))]
-		l.add_theme_color_override("font_color", Color("#ffd23d"))
-		root.add_child(l)
+		var report := _card(root, "LAST EXPEDITION  //  " + ("SUCCESS" if r.win else "FAILED"), GOLD)
+		_label(report, "Level %d  •  %s  •  Nights %d/2  •  +%d Digicore  •  Equipment: %s" % [r.lv, r.name, r.cleared, r.core, ", ".join(PackedStringArray(r.got))], 13, WHITE)
 		Run.last_result = {}
 	tabs = TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tabs.add_theme_stylebox_override("panel", _panel(Color("#10224a"), Color("#e9b92e"), 2))
+	tabs.add_theme_stylebox_override("panel", _panel(Color("#0b1b40ee"), CYAN, 2, 14))
 	root.add_child(tabs)
 	for n in ["Mercenary Digimon", "Equipment", ".mon Files", "Expedition"]:
 		var sc := ScrollContainer.new()
 		sc.name = n
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		tabs.add_child(sc)
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 14)
 		sc.add_child(v)
 		pages[n] = v
 	build_all()
 
 func build_all() -> void:
-	core_lbl.text = "Digicore: %d   " % Save.core
+	core_lbl.text = "◈ DIGICORE  %d" % Save.core
 	build_digi()
 	build_equip()
 	build_mon()
@@ -61,121 +81,189 @@ func build_all() -> void:
 
 func page(n: String) -> VBoxContainer:
 	var v: VBoxContainer = pages[n]
-	for c in v.get_children(): c.queue_free()
+	for child in v.get_children():
+		v.remove_child(child)
+		child.queue_free()
 	return v
 
-func lbl(parent: Node, text: String, size: int = 14, col: Color = Color.WHITE) -> Label:
+func _label(parent: Node, content: String, font_size: int = 15, color: Color = WHITE) -> Label:
 	var l := Label.new()
-	l.text = text
+	l.text = content
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(900, 0)
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", col)
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", color)
 	parent.add_child(l)
 	return l
 
-func grid(parent: Node, cols: int) -> GridContainer:
+func _card(parent: Node, title: String, accent: Color = CYAN) -> VBoxContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", _panel(Color("#102b5be8"), accent, 2, 15))
+	parent.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 10)
+	panel.add_child(content)
+	_label(content, title, 18, accent)
+	return content
+
+func _section(parent: Node, title: String, description: String) -> void:
+	var header := _card(parent, title, GOLD)
+	_label(header, description, 14, MUTED)
+
+func _grid(parent: Node, cols: int) -> GridContainer:
 	var g := GridContainer.new()
 	g.columns = cols
+	g.add_theme_constant_override("h_separation", 12)
+	g.add_theme_constant_override("v_separation", 12)
 	parent.add_child(g)
 	return g
 
-# ---------------------------------------------------------------- Mercenary Digimon
+func _roster_button(parent: Node, i: int, active: bool, action: Callable) -> void:
+	var r: Dictionary = Data.ROSTER[i]
+	var b := Button.new()
+	b.text = "%s\n%s  •  %s" % [r.stages[1], r.cls, r.attr]
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.custom_minimum_size = Vector2(225, 72)
+	b.toggle_mode = true
+	b.button_pressed = active
+	b.pressed.connect(action)
+	parent.add_child(b)
+
+# MERCENARY DIGIMON
 func build_digi() -> void:
 	var v := page("Mercenary Digimon")
-	lbl(v, "Click a Digimon to see its evolution line and moves. The selected Digimon is the one you take on the expedition.")
-	var g := grid(v, 4)
+	_section(v, "01  //  MERCENARY DATABASE", "Choose a partner, then select an evolution stage from the dropdown to inspect its abilities.")
+	var g := _grid(v, 4)
 	for i in Data.ROSTER.size():
-		var r: Dictionary = Data.ROSTER[i]
-		var b := Button.new()
-		b.toggle_mode = true
-		b.button_pressed = i == sel
-		b.text = "%s (%s)" % [r.stages[1], r.cls]
-		b.custom_minimum_size = Vector2(230, 40)
-		var idx := i
-		b.pressed.connect(func():
+		var idx: int = i
+		_roster_button(g, i, i == sel, func():
 			sel = idx
+			viewed_stage = 1
 			build_digi()
 			build_exped())
-		g.add_child(b)
-	v.add_child(HSeparator.new())
 	var r: Dictionary = Data.ROSTER[sel]
-	lbl(v, "%s line   |   Class: %s   |   Attribute: %s   |   Typing: %s" % [r.stages[1], r.cls, r.attr, r.type], 18, Color("#ffd23d"))
-	var pp: Array = Data.CLASS_PASSIVE[r.cls]
-	lbl(v, "Passive: %s (+%d%% %s). Cannot be changed." % [pp[0], int(pp[2] * 100.0), STAT_NAMES.get(pp[1], pp[1])])
-	lbl(v, "Damage scaling: %s (every move in this line). Every move is %s-type, so type advantage and %s damage bonuses apply to all of them." % [("Intelligence" if Data.line_scaling(sel) == "int" else "Physical (Attack)"), r.type, r.type])
-	var chain: Array = []
-	for st in 5: chain.append("%s (%s)" % [r.stages[st], TIERS[st]])
-	lbl(v, "Evolution line: " + " > ".join(PackedStringArray(chain)))
-	v.add_child(HSeparator.new())
+	var detail := _card(v, "◈  %s  //  %s CLASS" % [r.stages[1], r.cls], GOLD)
+	_label(detail, "ATTRIBUTE  %s     •     TYPE  %s     •     DAMAGE  %s" % [r.attr, r.type, "Intelligence" if Data.line_scaling(sel) == "int" else "Attack"], 14, WHITE)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	detail.add_child(row)
+	_label(row, "VIEW DIGIVOLUTION STAGE", 14, CYAN)
+	var stage_picker := OptionButton.new()
+	stage_picker.custom_minimum_size = Vector2(310, 42)
+	for stage in 5:
+		stage_picker.add_item("%s  //  %s" % [r.stages[stage], TIERS[stage]], stage)
+	stage_picker.select(viewed_stage)
+	stage_picker.item_selected.connect(func(index: int):
+		viewed_stage = index
+		build_digi())
+	row.add_child(stage_picker)
+	var passive: Array = Data.CLASS_PASSIVE[r.cls]
+	_label(detail, "CLASS PASSIVE  •  %s  (+%d%% %s)" % [passive[0], int(float(passive[2]) * 100.0), STAT_NAMES.get(passive[1], passive[1])], 14, MUTED)
+	var info := _card(v, "STAGE %02d  //  %s" % [viewed_stage + 1, r.stages[viewed_stage]], CYAN)
+	_label(info, TIERS[viewed_stage] + "    •    " + r.type + "-type attacks", 14, MUTED)
+	var moves: Array = MoveInfo.get_moves(sel, viewed_stage)
+	if moves.is_empty():
+		_label(info, "Move data pending. Default projectile attack and short-range shockwave are available.", 15, WHITE)
+	else:
+		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
+		for k in mini(3, moves.size()):
+			var move_card := _card(info, kinds[k] + "   •   " + str(moves[k][0]), Color("#8bcfff"))
+			_label(move_card, str(moves[k][1]), 14, WHITE)
+	var chain: Array[String] = []
 	for st in 5:
-		lbl(v, "%s  -  %s" % [r.stages[st], TIERS[st]], 16, Color("#7fd8ff"))
-		var mv: Array = MoveInfo.get_moves(sel, st)
-		if mv.is_empty():
-			lbl(v, "     Moves not implemented yet. This line uses a default projectile attack (click) and a short shockwave (Q).")
-		else:
-			var kinds := ["Basic Attack", "Skill (Q)", "Ultimate (R)"]
-			for k in 3: lbl(v, "     %s - %s: %s" % [kinds[k], mv[k][0], mv[k][1]])
+		chain.append(str(r.stages[st]))
+	_label(v, "DIGIVOLUTION PATH   " + "  ›  ".join(chain), 13, MUTED)
 
-# ---------------------------------------------------------------- Equipment
+# EQUIPMENT
 func build_equip() -> void:
 	var v := page("Equipment")
-	lbl(v, "Collected equipment: %d.  Equipped: %d/3.  Click a piece to equip or unequip it. Equipment is permanent and cannot be dropped during a run." % [Save.owned.size(), Save.equipped.size()], 14)
-	var g := grid(v, 3)
-	var list: Array = Save.owned.duplicate()
-	list.sort_custom(func(a, b): return Data.equip[a.id].rar > Data.equip[b.id].rar)
-	for o in list:
+	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
+	var summary := _card(v, "LOADOUT STATUS  //  %d / 3 EQUIPPED" % Save.equipped.size(), GOLD)
+	_label(summary, "COLLECTION  %d ITEMS    •    EQUIPMENT PERSISTS BETWEEN EXPEDITIONS" % Save.owned.size(), 14, MUTED)
+	var g := _grid(v, 3)
+	var items: Array = Save.owned.duplicate()
+	items.sort_custom(func(a, b): return Data.equip[a.id].rar > Data.equip[b.id].rar)
+	if items.is_empty():
+		_label(v, "No equipment collected yet. Complete expeditions to earn permanent upgrades.", 16, WHITE)
+	for o in items:
 		var d: Dictionary = Data.equip[o.id]
+		var equipped: bool = Save.equipped.has(int(o.u))
 		var b := Button.new()
 		b.toggle_mode = true
-		b.button_pressed = Save.equipped.has(int(o.u))
-		b.text = "%s  [%s]\n%s" % [d.name, Data.RARITIES[d.rar], d.desc]
+		b.button_pressed = equipped
+		b.text = "%s  •  %s\n%s\n%s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "IN VAULT", d.name, d.desc]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(300, 80)
-		var u := int(o.u)
+		b.custom_minimum_size = Vector2(300, 105)
+		var uid: int = int(o.u)
 		b.pressed.connect(func():
-			if Save.equipped.has(u): Save.equipped.erase(u)
-			elif Save.equipped.size() < 3: Save.equipped.append(u)
+			if Save.equipped.has(uid):
+				Save.equipped.erase(uid)
+			elif Save.equipped.size() < 3:
+				Save.equipped.append(uid)
 			Save.save_game()
-			build_equip())
+			build_equip()
+			build_exped())
 		g.add_child(b)
 
-# ---------------------------------------------------------------- .mon files
+# .MON FILES
 func build_mon() -> void:
 	var v := page(".mon Files")
-	lbl(v, "Unlock memories of the past by progressing with a Digimon: reach Champion, reach Ultimate, win a run, or find one on an expedition. Click a Digimon to read its files.")
-	var g := grid(v, 4)
+	_section(v, "03  //  MEMORY ARCHIVE", "Recover encrypted .mon records by evolving, exploring, and winning expeditions.")
+	var g := _grid(v, 4)
 	for i in Data.ROSTER.size():
-		var idx := i
+		var idx: int = i
 		var b := Button.new()
-		b.text = "%s (%s): %d/3" % [Data.ROSTER[i].stages[1], Data.ROSTER[i].cls, Save.mon_count(i)]
-		b.custom_minimum_size = Vector2(230, 40)
+		b.text = "%s\nDECRYPTED  %d / 3" % [Data.ROSTER[i].stages[1], Save.mon_count(i)]
+		b.custom_minimum_size = Vector2(225, 68)
 		b.pressed.connect(func():
-			var n := Save.mon_count(idx)
-			var out: Array = []
-			for k in n: out.append("%s.mon %d: placeholder memory. Replace with your lore." % [Data.ROSTER[idx].stages[1], k + 1])
-			mon_info.text = "No files unlocked yet." if n == 0 else "\n".join(PackedStringArray(out)))
+			selected_mon = idx
+			_show_mon_details())
 		g.add_child(b)
-	v.add_child(HSeparator.new())
-	mon_info = lbl(v, "Select a Digimon above.")
+	mon_info = _card(v, "ARCHIVE READER  //  SELECT A DIGIMON", GOLD)
+	_show_mon_details()
 
-# ---------------------------------------------------------------- Expedition
+func _show_mon_details() -> void:
+	if mon_info == null:
+		return
+	for c in mon_info.get_children():
+		mon_info.remove_child(c)
+		c.queue_free()
+	if selected_mon < 0 or selected_mon >= Data.ROSTER.size():
+		_label(mon_info, "Choose a Digimon above to access its encrypted memory files.", 14, MUTED)
+		return
+	var name: String = str(Data.ROSTER[selected_mon].stages[1])
+	var count: int = Save.mon_count(selected_mon)
+	_label(mon_info, "%s  //  %d OF 3 FILES DECRYPTED" % [name, count], 17, CYAN)
+	if count == 0:
+		_label(mon_info, "ACCESS DENIED  •  No memory files unlocked yet.", 14, MUTED)
+	else:
+		for k in count:
+			var record := _card(mon_info, "%s.mon  /  RECORD %02d" % [name, k + 1], CYAN)
+			_label(record, "Encrypted memory placeholder. Story lore has not been authored yet.", 14, WHITE)
+
+# EXPEDITION
 func build_exped() -> void:
 	var v := page("Expedition")
+	_section(v, "04  //  DARK AREA GATEWAY", "Confirm your mercenary and loadout before deploying into the three-night expedition.")
 	var r: Dictionary = Data.ROSTER[sel]
-	lbl(v, "Mercenary: %s (%s class, %s / %s), starts as %s." % [r.stages[1], r.cls, r.attr, r.type, r.stages[0]], 16)
-	lbl(v, "Equipped: %d/3 (change in the Equipment tab)." % Save.equipped.size())
+	var merc := _card(v, "ACTIVE MERCENARY  //  %s" % r.stages[1], GOLD)
+	_label(merc, "CLASS  %s     •     ATTRIBUTE  %s     •     TYPE  %s" % [r.cls, r.attr, r.type], 15, WHITE)
+	_label(merc, "DEPLOYMENT FORM  %s  •  LEVEL 1" % r.stages[0], 14, CYAN)
+	var equip := _card(v, "EQUIPMENT LOADOUT  //  %d / 3" % Save.equipped.size(), CYAN)
+	_label(equip, "Change equipped items in the Equipment Vault.", 14, MUTED)
 	if not MoveInfo.MOVES.has(sel):
-		lbl(v, "Note: this line does not have its full moveset yet.", 14, Color("#ff9a4d"))
-	var row := HBoxContainer.new()
-	v.add_child(row)
+		_label(equip, "NOTICE  •  Full moveset for this line is still in development.", 13, GOLD)
+	var gateway := _card(v, "FALSE DRASIL  //  TARGET SELECTION", GOLD)
 	drasil = OptionButton.new()
-	drasil.add_item("False Drasil 1: Angemon / Devimon")
-	row.add_child(drasil)
+	drasil.custom_minimum_size = Vector2(400, 48)
+	drasil.add_item("FALSE DRASIL 01   /   ANGEMON + DEVIMON")
+	gateway.add_child(drasil)
 	var go := Button.new()
-	go.text = "Begin expedition"
+	go.text = "▶  BEGIN EXPEDITION"
+	go.custom_minimum_size = Vector2(360, 70)
+	go.add_theme_font_size_override("font_size", 22)
 	go.pressed.connect(start)
-	row.add_child(go)
+	gateway.add_child(go)
 
 func start() -> void:
 	Run.line = sel
@@ -183,36 +271,32 @@ func start() -> void:
 	Run.xpm = 1.0
 	get_tree().change_scene_to_file("res://scenes/run.tscn")
 
-func _panel(fill: Color, edge: Color, border_size: int) -> StyleBoxFlat:
+func _panel(fill: Color, edge: Color, border_size: int, padding: int = 10) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = fill
 	box.border_color = edge
 	box.set_border_width_all(border_size)
 	box.set_corner_radius_all(9)
-	box.set_content_margin_all(10)
+	box.set_content_margin_all(padding)
 	return box
 
 func _apply_ui_theme() -> void:
 	var th := Theme.new()
-	var normal := _panel(Color("#173b79"), Color("#477ab7"), 1)
-	var hover := _panel(Color("#2158a0"), Color("#ffcf36"), 3)
-	var selected := _panel(Color("#123566"), Color("#ffcf36"), 2)
+	var normal := _panel(Color("#15396c"), Color("#4387bf"), 2)
+	var hover := _panel(Color("#1c5594"), GOLD, 3)
+	var selected := _panel(Color("#16345e"), GOLD, 3)
 	th.set_stylebox("normal", "Button", normal)
 	th.set_stylebox("hover", "Button", hover)
 	th.set_stylebox("pressed", "Button", selected)
-	th.set_stylebox("focus", "Button", _panel(Color.TRANSPARENT, Color("#ffcf36"), 2))
-	th.set_stylebox("disabled", "Button", _panel(Color("#273550"), Color("#475574"), 1))
-	th.set_color("font_color", "Button", Color("#fff1bb"))
-	th.set_color("font_hover_color", "Button", Color("#ffcf36"))
-	th.set_color("font_pressed_color", "Button", Color("#ffcf36"))
-	th.set_color("font_color", "Label", Color("#e9f1ff"))
+	th.set_stylebox("hover_pressed", "Button", selected)
+	th.set_stylebox("focus", "Button", _panel(Color.TRANSPARENT, GOLD, 1))
+	th.set_stylebox("disabled", "Button", _panel(Color("#24334e"), Color("#465979"), 1))
+	th.set_color("font_color", "Button", WHITE)
+	th.set_color("font_hover_color", "Button", GOLD)
+	th.set_color("font_pressed_color", "Button", GOLD)
+	th.set_color("font_color", "Label", WHITE)
 	th.set_stylebox("tab_selected", "TabContainer", selected)
 	th.set_stylebox("tab_hovered", "TabContainer", hover)
 	th.set_stylebox("tab_unselected", "TabContainer", normal)
-	th.set_color("font_selected_color", "TabContainer", Color("#ffcf36"))
+	th.set_color("font_selected_color", "TabContainer", GOLD)
 	theme = th
-	var bg := ColorRect.new()
-	bg.color = Color("#0b1730")
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)

@@ -90,7 +90,8 @@ func _sync_terrain() -> void:
 	if terrain_view.size != target:
 		terrain_view.size = target
 	terrain_camera.size = vp.y * TERRAIN_SCALE
-	terrain_camera.position = Vector3((P.pos.x - WORLD * 0.5) * TERRAIN_SCALE, 450.0, (P.pos.y - WORLD * 0.5) * TERRAIN_SCALE)
+	var center: Vector2 = cam.get_screen_center_position()
+	terrain_camera.position = Vector3((center.x - WORLD * 0.5) * TERRAIN_SCALE, 450.0, (center.y - WORLD * 0.5) * TERRAIN_SCALE)
 
 func nm() -> String:
 	return Data.ROSTER[P.line].stages[P.stage]
@@ -1144,11 +1145,12 @@ func hpbar(p: Vector2, w: float, v: float) -> void:
 func _draw() -> void:
 	if P.is_empty() or R.is_empty(): return
 	var vp := get_viewport_rect().size
-	var view := Rect2(P.pos - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
+	var screen_center: Vector2 = cam.get_screen_center_position()
+	var view := Rect2(screen_center - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
 	if R.mode == "night":
 		# The 3D orthographic terrain replaces the old flat colored biome tiles.
 		if terrain_view != null:
-			draw_texture_rect(terrain_view.get_texture(), Rect2(P.pos - vp * 0.5, vp), false)
+			draw_texture_rect(terrain_view.get_texture(), Rect2(screen_center - vp * 0.5, vp), false)
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		for a in areas: label(a.pos, a.n, 15, Color(1, 1, 1, 0.35))

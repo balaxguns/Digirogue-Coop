@@ -67,35 +67,27 @@ func _begin_effect(b: Button) -> void:
 	b.add_child(overlay)
 	# Trace the six-sided beveled button silhouette instead of a rectangle.
 	# All positions scale with the actual button dimensions.
-	var x0: float = 0.0
-	var y0: float = 0.0
+	# Match the artwork's bevel using a CLOSED polygon, not a Line2D
+	# (which can show a gap at its join). The button itself is the origin.
 	var w: float = b.size.x
 	var h: float = b.size.y
-	var inset: float = h * 0.42
-	var edge: float = h * 0.08
-	var corners := PackedVector2Array([
-		Vector2(x0 + inset, y0 + edge),
-		Vector2(x0 + w - inset, y0 + edge),
-		Vector2(x0 + w - edge, y0 + h * 0.5),
-		Vector2(x0 + w - inset, y0 + h - edge),
-		Vector2(x0 + inset, y0 + h - edge),
-		Vector2(x0 + edge, y0 + h * 0.5),
-		Vector2(x0 + inset, y0 + edge)
+	var bevel: float = h * 0.34
+	var margin_x: float = 3.0
+	var margin_y: float = 2.0
+	var points := PackedVector2Array([
+		Vector2(bevel, margin_y),
+		Vector2(w - bevel, margin_y),
+		Vector2(w - margin_x, h * 0.5),
+		Vector2(w - bevel, h - margin_y),
+		Vector2(bevel, h - margin_y),
+		Vector2(margin_x, h * 0.5)
 	])
-	var glow := Line2D.new()
-	glow.points = corners
-	glow.closed = true
-	glow.width = 15.0
-	glow.default_color = Color("#ffbd26", 0.32)
-	glow.antialiased = true
-	overlay.add_child(glow)
-	var outline := Line2D.new()
-	outline.points = corners
-	outline.closed = true
-	outline.width = 8.0
-	outline.default_color = GOLD
-	outline.antialiased = true
-	overlay.add_child(outline)
+	# Two nested closed polygons create a continuous thick neon rim.
+	# draw_polyline uses explicit closing coordinates; joint circles remove seams.
+	var border := Node2D.new()
+	border.set_script(load("res://scripts/title_hover_border.gd"))
+	border.set_meta("outline_points", points)
+	overlay.add_child(border)
 	var tweens: Array = []
 	for side in 2:
 		for i in 8:

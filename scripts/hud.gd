@@ -119,27 +119,104 @@ func _draw_mini() -> void:
 	if g.boss != null:
 		mini.draw_rect(Rect2(g.boss.pos * k - Vector2(2, 2), Vector2(4, 4)), Color("#ff5555"))
 
-# ---------------------------------------------------------------- Escape menu
+# ---------------------------------------------------------------- Translucent in-run command overlay
+const UI_GOLD := Color("#ffcf36")
+const UI_CYAN := Color("#62d7ff")
+const UI_MUTED := Color("#b5cbe4")
+var menu_shell: MarginContainer
+var menu_dim: ColorRect
+
+func _ui_panel(fill: Color, edge: Color, pad: int = 10) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.border_color = edge
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(pad)
+	return sb
+
 func _build_menu() -> void:
+	# A CanvasLayer renders above the game. Only the overlay is transparent;
+	# the expedition continues updating and remains visible underneath.
+	menu_dim = ColorRect.new()
+	menu_dim.color = Color(0.015, 0.04, 0.12, 0.12)
+	menu_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_dim.visible = false
+	add_child(menu_dim)
+	menu_shell = MarginContainer.new()
+	menu_shell.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu_shell.add_theme_constant_override("margin_left", 16)
+	menu_shell.add_theme_constant_override("margin_right", 16)
+	menu_shell.add_theme_constant_override("margin_top", 74)
+	menu_shell.add_theme_constant_override("margin_bottom", 76)
+	menu_shell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_shell.visible = false
+	add_child(menu_shell)
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_shell.add_child(center)
 	menu = PanelContainer.new()
-	menu.visible = false
-	add_child(menu)
+	menu.custom_minimum_size = Vector2(0, 0)
+	menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	menu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	menu.add_theme_stylebox_override("panel", _ui_panel(Color(0.035, 0.105, 0.23, 0.77), Color("#4aabdb"), 12))
+	center.add_child(menu)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 9)
+	menu.add_child(body)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 14)
+	body.add_child(header)
+	var title := Label.new()
+	title.text = "EXPEDITION  //  FIELD TERMINAL"
+	title.add_theme_font_size_override("font_size", 19)
+	title.add_theme_color_override("font_color", UI_GOLD)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var close := Button.new()
+	close.text = "CLOSE  [ESC]"
+	close.custom_minimum_size = Vector2(132, 34)
+	close.pressed.connect(close_menu)
+	header.add_child(close)
 	tabs = TabContainer.new()
-	tabs.custom_minimum_size = Vector2(780, 500)
-	menu.add_child(tabs)
+	tabs.custom_minimum_size = Vector2(740, 340)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_theme_stylebox_override("panel", _ui_panel(Color(0.045, 0.14, 0.29, 0.64), Color("#4387bf"), 10))
+	body.add_child(tabs)
 	for n in ["Inventory", "Moves", "Quit Game"]:
 		var sc := ScrollContainer.new()
 		sc.name = n
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tabs.add_child(sc)
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 7)
 		sc.add_child(v)
 		if n == "Inventory": inv_box = v
 		elif n == "Moves": moves_box = v
 		else: quit_box = v
+	var foot := Label.new()
+	foot.text = "LIVE EXPEDITION  •  THE WORLD CONTINUES WHILE THIS TERMINAL IS OPEN"
+	foot.add_theme_font_size_override("font_size", 11)
+	foot.add_theme_color_override("font_color", UI_CYAN)
+	body.add_child(foot)
+	var th := Theme.new()
+	th.set_stylebox("normal", "Button", _ui_panel(Color(0.08, 0.23, 0.43, 0.85), Color("#4387bf"), 7))
+	th.set_stylebox("hover", "Button", _ui_panel(Color(0.12, 0.32, 0.54, 0.94), UI_GOLD, 7))
+	th.set_stylebox("pressed", "Button", _ui_panel(Color(0.09, 0.25, 0.44, 0.95), UI_GOLD, 7))
+	th.set_stylebox("focus", "Button", _ui_panel(Color.TRANSPARENT, UI_GOLD, 1))
+	th.set_color("font_color", "Button", Color("#e9f5ff"))
+	th.set_color("font_hover_color", "Button", UI_GOLD)
+	th.set_stylebox("tab_selected", "TabContainer", _ui_panel(Color(0.09, 0.26, 0.47, 0.94), UI_GOLD, 8))
+	th.set_stylebox("tab_unselected", "TabContainer", _ui_panel(Color(0.07, 0.17, 0.33, 0.80), Color("#4387bf"), 8))
+	th.set_color("font_selected_color", "TabContainer", UI_GOLD)
+	menu.theme = th
 
 func toggle_menu(tab: int = 0) -> void:
-	if menu.visible:
+	if menu_shell.visible:
 		close_menu()
 		return
 	moves_stage = g.P.stage
@@ -147,52 +224,64 @@ func toggle_menu(tab: int = 0) -> void:
 	rebuild_moves()
 	rebuild_quit()
 	tabs.current_tab = tab
-	var vp := get_viewport().get_visible_rect().size
-	menu.position = vp / 2.0 - Vector2(390, 250)
+	# Never pause the world for an inventory inspection.
+	menu_dim.visible = true
+	menu_shell.visible = true
 	menu.visible = true
-	get_tree().paused = true
 
 func close_menu() -> void:
-	menu.visible = false
-	get_tree().paused = false
+	menu_shell.visible = false
+	menu_dim.visible = false
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if menu.visible and ((ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_ESCAPE) or ev.is_action_pressed("inventory")):
+	if menu_shell.visible and ((ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_ESCAPE) or ev.is_action_pressed("inventory")):
 		close_menu()
 		get_viewport().set_input_as_handled()
 
 func _clear(box: Node) -> void:
-	for c in box.get_children(): c.queue_free()
+	for c in box.get_children():
+		box.remove_child(c)
+		c.queue_free()
 
 func _head(box: Node, t: String) -> void:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", 18)
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_color", UI_GOLD)
 	box.add_child(l)
 
-func _text(box: Node, t: String, col: Color = Color.WHITE, w: float = 700.0) -> Label:
+func _text(box: Node, t: String, col: Color = Color.WHITE, w: float = 0.0) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(w, 0)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_theme_font_size_override("font_size", 13)
 	l.add_theme_color_override("font_color", col)
 	box.add_child(l)
 	return l
 
 func _row(box: Node, title: String, desc: String, btns: Array) -> void:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", _ui_panel(Color(0.06, 0.16, 0.33, 0.68), Color(0.23, 0.49, 0.72, 0.85), 7))
+	box.add_child(panel)
 	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	panel.add_child(row)
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_text(col, title, Color("#ffd23d"), 480.0)
-	_text(col, desc, Color.WHITE, 480.0)
+	col.add_theme_constant_override("separation", 2)
 	row.add_child(col)
+	_text(col, title, UI_CYAN)
+	_text(col, desc, Color("#e1ebf8"))
 	for b in btns:
 		var bt := Button.new()
 		bt.text = b[0]
+		bt.custom_minimum_size = Vector2(78, 34)
+		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		bt.pressed.connect(b[1])
 		row.add_child(bt)
-	box.add_child(row)
-	box.add_child(HSeparator.new())
 
 func _use(i: int) -> void:
 	g.use_item(i)
@@ -209,23 +298,23 @@ func _drop_c(i: int) -> void:
 func rebuild_inv() -> void:
 	_clear(inv_box)
 	var P = g.P
-	_head(inv_box, "Equipment  %d/3  (permanent, cannot be dropped)" % P.eq.size())
-	if P.eq.is_empty(): _row(inv_box, "Nothing equipped", "Equip gear in the hub before an expedition.", [])
+	_head(inv_box, "EQUIPMENT  //  %d / 3" % P.eq.size())
+	if P.eq.is_empty(): _row(inv_box, "No equipment equipped", "Equip permanent gear at the Mallow hub.", [])
 	for e in P.eq:
 		var d: Dictionary = Data.equip[e.id]
-		_row(inv_box, "%s   [%s]" % [d.name, Data.RARITIES[d.rar]], d.desc, [])
-	_head(inv_box, "Items  %d/3 slots  (each slot stacks up to 3; lost when the expedition ends)" % P.items.size())
-	if P.items.is_empty(): _row(inv_box, "No items", "Pick up items from enemies and chests.", [])
+		_row(inv_box, "%s  •  %s" % [d.name, Data.RARITIES[d.rar]], d.desc, [])
+	_head(inv_box, "CONSUMABLE ITEMS  //  %d / 3 SLOTS" % P.items.size())
+	if P.items.is_empty(): _row(inv_box, "No consumables", "Find items from enemies and chests. Each slot stacks to three.", [])
 	for i in P.items.size():
 		var it: Dictionary = P.items[i]
 		var idx: int = i
-		_row(inv_box, "%s  x%d   [%s]" % [it.name, it.n, Data.RARITIES[it.rar]], it.desc, [["Use", func(): _use(idx)], ["Drop 1", func(): _drop_i(idx)]])
-	_head(inv_box, "Option Cards  %d/6  (last for this expedition)" % P.cards.size())
-	if P.cards.is_empty(): _row(inv_box, "No option cards", "Defeat enemies and open chests to find them.", [])
+		_row(inv_box, "%s  ×%d  •  %s" % [it.name, it.n, Data.RARITIES[it.rar]], it.desc, [["USE", func(): _use(idx)], ["DROP", func(): _drop_i(idx)]])
+	_head(inv_box, "OPTION CARDS  //  %d / 6" % P.cards.size())
+	if P.cards.is_empty(): _row(inv_box, "No option cards", "Defeat enemies and open chests to discover cards.", [])
 	for i in P.cards.size():
 		var c: Dictionary = P.cards[i]
 		var idx: int = i
-		_row(inv_box, "%s   [%s]" % [c.name, Data.RARITIES[c.rar]], c.desc, [["Drop", func(): _drop_c(idx)]])
+		_row(inv_box, "%s  •  %s" % [c.name, Data.RARITIES[c.rar]], c.desc, [["DROP", func(): _drop_c(idx)]])
 
 func _pick_stage(st: int) -> void:
 	moves_stage = st
@@ -235,49 +324,43 @@ func rebuild_moves() -> void:
 	_clear(moves_box)
 	var P = g.P
 	var r: Dictionary = Data.ROSTER[P.line]
-	_head(moves_box, "%s line" % r.stages[1])
-	_text(moves_box, "Class: %s   |   Attribute: %s   |   Typing: %s   |   Scaling: %s" % [r.cls, r.attr, r.type, "Intelligence" if Data.line_scaling(P.line) == "int" else "Physical (Attack)"])
-	_text(moves_box, "Every move is %s-type. Click an evolution stage to see its moves." % r.type, Color("#9fe8ff"))
-	var row := HBoxContainer.new()
-	moves_box.add_child(row)
+	_head(moves_box, "MERCENARY  //  %s" % r.stages[1])
+	_text(moves_box, "%s CLASS  •  %s ATTRIBUTE  •  %s TYPE" % [r.cls, r.attr, r.type], UI_MUTED)
+	var picker := OptionButton.new()
+	picker.custom_minimum_size = Vector2(250, 36)
 	for st in 5:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.button_pressed = st == moves_stage
-		b.text = "%s\n%s%s" % [TIERS[st], r.stages[st], "  (current)" if st == P.stage else ""]
-		b.custom_minimum_size = Vector2(140, 56)
-		var idx := st
-		b.pressed.connect(func(): _pick_stage(idx))
-		row.add_child(b)
-	moves_box.add_child(HSeparator.new())
-	_head(moves_box, "%s  -  %s" % [r.stages[moves_stage], TIERS[moves_stage]])
-	_text(moves_box, "Attribute: %s   |   Typing: %s" % [r.attr, r.type], Color("#ffd23d"))
+		picker.add_item("%s  •  %s%s" % [r.stages[st], ["In-Training", "Rookie", "Champion", "Ultimate", "Mega"][st], "  (CURRENT)" if st == P.stage else ""], st)
+	picker.select(moves_stage)
+	picker.item_selected.connect(_pick_stage)
+	moves_box.add_child(picker)
+	_head(moves_box, "STAGE DATA  //  %s" % r.stages[moves_stage])
+	_text(moves_box, "%s  •  %s-type abilities" % [TIERS[moves_stage], r.type], UI_MUTED)
 	var mv: Array = MoveInfo.get_moves(P.line, moves_stage)
 	if mv.is_empty():
-		_text(moves_box, "Moves not implemented yet for this line. It uses a default projectile attack (click) and a short shockwave (Q).")
+		_row(moves_box, "Moves pending", "Default projectile attack and short-range shockwave.", [])
 	else:
-		var kinds := ["Basic Attack", "Skill (Q)", "Ultimate (R)"]
-		for k in 3:
-			_row(moves_box, "%s: %s" % [kinds[k], mv[k][0]], mv[k][1], [])
+		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
+		for k in mini(3, mv.size()):
+			_row(moves_box, "%s  •  %s" % [kinds[k], mv[k][0]], str(mv[k][1]), [])
 
 func _quit_yes() -> void:
-	menu.visible = false
-	get_tree().paused = false
+	close_menu()
 	g.end_run(false)
 
 func rebuild_quit() -> void:
 	_clear(quit_box)
-	_head(quit_box, "Quit Game")
-	_text(quit_box, "Exit the expedition and return to the hub? Items and option cards are lost, and nothing is rewarded for an abandoned run.")
+	_head(quit_box, "ABANDON EXPEDITION")
+	_text(quit_box, "Return to the hub? Items and option cards are lost, and an abandoned run earns no rewards.", UI_MUTED)
 	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
 	quit_box.add_child(row)
 	var yes := Button.new()
-	yes.text = "Yes"
-	yes.custom_minimum_size = Vector2(120, 44)
+	yes.text = "ABANDON RUN"
+	yes.custom_minimum_size = Vector2(150, 42)
 	yes.pressed.connect(_quit_yes)
 	row.add_child(yes)
 	var no := Button.new()
-	no.text = "No"
-	no.custom_minimum_size = Vector2(120, 44)
+	no.text = "CONTINUE"
+	no.custom_minimum_size = Vector2(140, 42)
 	no.pressed.connect(close_menu)
 	row.add_child(no)

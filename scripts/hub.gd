@@ -14,6 +14,7 @@ var pages: Dictionary = {}
 var core_lbl: Label
 var drasil: OptionButton
 var mon_info: VBoxContainer
+var stage_info: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -155,24 +156,34 @@ func build_digi() -> void:
 	stage_picker.select(viewed_stage)
 	stage_picker.item_selected.connect(func(index: int):
 		viewed_stage = index
-		build_digi())
+		_update_stage_details())
 	row.add_child(stage_picker)
 	var passive: Array = Data.CLASS_PASSIVE[r.cls]
 	_label(detail, "CLASS PASSIVE  •  %s  (+%d%% %s)" % [passive[0], int(float(passive[2]) * 100.0), STAT_NAMES.get(passive[1], passive[1])], 14, MUTED)
-	var info := _card(v, "STAGE %02d  //  %s" % [viewed_stage + 1, r.stages[viewed_stage]], CYAN)
-	_label(info, TIERS[viewed_stage] + "    •    " + r.type + "-type attacks", 14, MUTED)
-	var moves: Array = MoveInfo.get_moves(sel, viewed_stage)
-	if moves.is_empty():
-		_label(info, "Move data pending. Default projectile attack and short-range shockwave are available.", 15, WHITE)
-	else:
-		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
-		for k in mini(3, moves.size()):
-			var move_card := _card(info, kinds[k] + "   •   " + str(moves[k][0]), Color("#8bcfff"))
-			_label(move_card, str(moves[k][1]), 14, WHITE)
+	stage_info = _card(v, "DIGIVOLUTION STAGE DATA", CYAN)
+	_update_stage_details()
 	var chain: Array[String] = []
 	for st in 5:
 		chain.append(str(r.stages[st]))
 	_label(v, "DIGIVOLUTION PATH   " + "  ›  ".join(PackedStringArray(chain)), 13, MUTED)
+
+func _update_stage_details() -> void:
+	if stage_info == null:
+		return
+	for child in stage_info.get_children():
+		stage_info.remove_child(child)
+		child.queue_free()
+	var r: Dictionary = Data.ROSTER[sel]
+	_label(stage_info, "STAGE %02d  //  %s" % [viewed_stage + 1, r.stages[viewed_stage]], 18, CYAN)
+	_label(stage_info, TIERS[viewed_stage] + "    •    " + r.type + "-type attacks", 14, MUTED)
+	var moves: Array = MoveInfo.get_moves(sel, viewed_stage)
+	if moves.is_empty():
+		_label(stage_info, "Move data pending. Default projectile attack and short-range shockwave are available.", 15, WHITE)
+	else:
+		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
+		for k in mini(3, moves.size()):
+			var move_card := _card(stage_info, kinds[k] + "   •   " + str(moves[k][0]), Color("#8bcfff"))
+			_label(move_card, str(moves[k][1]), 14, WHITE)
 
 # EQUIPMENT
 func build_equip() -> void:

@@ -1,5 +1,5 @@
 extends CanvasLayer
-## In-run HUD and the Escape menu (Inventory / Moves / Quit Game), built entirely in code. g = the run script.
+## In-run HUD and the live field terminal (Equipment / Consumables / Option Cards / Moves / Quit Game).
 const TIERS := ["In-Training (Lv 1)", "Rookie (Lv 3)", "Champion (Lv 6)", "Ultimate (Lv 12)", "Mega (Lv 15)"]
 var g
 var lbl_name: Label
@@ -17,7 +17,9 @@ var mini: Control
 var sig := ""
 var menu: PanelContainer
 var tabs: TabContainer
-var inv_box: VBoxContainer
+var equip_box: VBoxContainer
+var consumables_box: VBoxContainer
+var option_box: VBoxContainer
 var moves_box: VBoxContainer
 var quit_box: VBoxContainer
 var moves_stage := 0
@@ -185,7 +187,7 @@ func _build_menu() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_theme_stylebox_override("panel", _ui_panel(Color(0.045, 0.14, 0.29, 0.64), Color("#4387bf"), 10))
 	body.add_child(tabs)
-	for n in ["Inventory", "Moves", "Quit Game"]:
+	for n in ["Equipment", "Consumables", "Option Cards", "Moves", "Quit Game"]:
 		var sc := ScrollContainer.new()
 		sc.name = n
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -195,7 +197,9 @@ func _build_menu() -> void:
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		v.add_theme_constant_override("separation", 7)
 		sc.add_child(v)
-		if n == "Inventory": inv_box = v
+		if n == "Equipment": equip_box = v
+		elif n == "Consumables": consumables_box = v
+		elif n == "Option Cards": option_box = v
 		elif n == "Moves": moves_box = v
 		else: quit_box = v
 	var foot := Label.new()
@@ -296,25 +300,44 @@ func _drop_c(i: int) -> void:
 	rebuild_inv()
 
 func rebuild_inv() -> void:
-	_clear(inv_box)
+	rebuild_equipment()
+	rebuild_consumables()
+	rebuild_option_cards()
+
+func rebuild_equipment() -> void:
+	_clear(equip_box)
 	var P = g.P
-	_head(inv_box, "EQUIPMENT  //  %d / 3" % P.eq.size())
-	if P.eq.is_empty(): _row(inv_box, "No equipment equipped", "Equip permanent gear at the Mallow hub.", [])
+	_head(equip_box, "EQUIPMENT  //  %d / 3" % P.eq.size())
+	_text(equip_box, "Permanent equipment selected at the Mallow hub. Equipment cannot be dropped during expeditions.", UI_MUTED)
+	if P.eq.is_empty():
+		_row(equip_box, "No equipment equipped", "Equip permanent gear at the Mallow hub.", [])
 	for e in P.eq:
 		var d: Dictionary = Data.equip[e.id]
-		_row(inv_box, "%s  •  %s" % [d.name, Data.RARITIES[d.rar]], d.desc, [])
-	_head(inv_box, "CONSUMABLE ITEMS  //  %d / 3 SLOTS" % P.items.size())
-	if P.items.is_empty(): _row(inv_box, "No consumables", "Find items from enemies and chests. Each slot stacks to three.", [])
+		_row(equip_box, "%s  •  %s" % [d.name, Data.RARITIES[d.rar]], d.desc, [])
+
+func rebuild_consumables() -> void:
+	_clear(consumables_box)
+	var P = g.P
+	_head(consumables_box, "CONSUMABLE ITEMS  //  %d / 3 SLOTS" % P.items.size())
+	_text(consumables_box, "Each slot holds up to three items. Consumables are lost when the expedition ends.", UI_MUTED)
+	if P.items.is_empty():
+		_row(consumables_box, "No consumables", "Find items from enemies and chests.", [])
 	for i in P.items.size():
 		var it: Dictionary = P.items[i]
 		var idx: int = i
-		_row(inv_box, "%s  ×%d  •  %s" % [it.name, it.n, Data.RARITIES[it.rar]], it.desc, [["USE", func(): _use(idx)], ["DROP", func(): _drop_i(idx)]])
-	_head(inv_box, "OPTION CARDS  //  %d / 6" % P.cards.size())
-	if P.cards.is_empty(): _row(inv_box, "No option cards", "Defeat enemies and open chests to discover cards.", [])
+		_row(consumables_box, "%s  ×%d  •  %s" % [it.name, it.n, Data.RARITIES[it.rar]], it.desc, [["USE", func(): _use(idx)], ["DROP", func(): _drop_i(idx)]])
+
+func rebuild_option_cards() -> void:
+	_clear(option_box)
+	var P = g.P
+	_head(option_box, "OPTION CARDS  //  %d / 6" % P.cards.size())
+	_text(option_box, "Cards provide expedition-only bonuses. Dropping a card removes its effects.", UI_MUTED)
+	if P.cards.is_empty():
+		_row(option_box, "No option cards", "Defeat enemies and open chests to discover cards.", [])
 	for i in P.cards.size():
 		var c: Dictionary = P.cards[i]
 		var idx: int = i
-		_row(inv_box, "%s  •  %s" % [c.name, Data.RARITIES[c.rar]], c.desc, [["DROP", func(): _drop_c(idx)]])
+		_row(option_box, "%s  •  %s" % [c.name, Data.RARITIES[c.rar]], c.desc, [["DROP", func(): _drop_c(idx)]])
 
 func _pick_stage(st: int) -> void:
 	moves_stage = st

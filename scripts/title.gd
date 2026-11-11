@@ -63,16 +63,34 @@ func _begin_effect(b: Button) -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
-	var outline := Panel.new()
-	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	outline.position = b.position
-	outline.size = b.size
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color.TRANSPARENT
-	style.border_color = GOLD
-	style.set_border_width_all(5)
-	style.set_corner_radius_all(8)
-	outline.add_theme_stylebox_override("panel", style)
+	# Trace the six-sided beveled button silhouette instead of a rectangle.
+	# All positions scale with the actual button dimensions.
+	var x0: float = b.position.x
+	var y0: float = b.position.y
+	var w: float = b.size.x
+	var h: float = b.size.y
+	var inset: float = minf(h * 0.26, w * 0.06)
+	var edge: float = h * 0.08
+	var corners := PackedVector2Array([
+		Vector2(x0 + inset, y0 + edge),
+		Vector2(x0 + w - inset, y0 + edge),
+		Vector2(x0 + w - edge, y0 + h * 0.5),
+		Vector2(x0 + w - inset, y0 + h - edge),
+		Vector2(x0 + inset, y0 + h - edge),
+		Vector2(x0 + edge, y0 + h * 0.5),
+		Vector2(x0 + inset, y0 + edge)
+	])
+	var glow := Line2D.new()
+	glow.points = corners
+	glow.width = 15.0
+	glow.default_color = Color("#ffbd26", 0.32)
+	glow.antialiased = true
+	overlay.add_child(glow)
+	var outline := Line2D.new()
+	outline.points = corners
+	outline.width = 8.0
+	outline.default_color = GOLD
+	outline.antialiased = true
 	overlay.add_child(outline)
 	var tweens: Array = []
 	for side in 2:

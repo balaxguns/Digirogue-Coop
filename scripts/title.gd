@@ -5,6 +5,7 @@ const BLUE := Color("#1556a6")
 const GOLD := Color("#ffcf36")
 const PALE := Color("#fff2b2")
 var settings_panel: PanelContainer
+var hover_particles: Dictionary = {}
 
 func _ready() -> void:
 	Save.apply_settings()
@@ -116,4 +117,54 @@ func _btn(parent: Node, caption: String) -> Button:
 	b.add_theme_stylebox_override("pressed", _box(Color("#102c70"), GOLD, 3, 5))
 	b.add_theme_stylebox_override("disabled", _box(Color("#18294c"), Color("#39466b"), 1, 7))
 	parent.add_child(b)
+	if not caption.begins_with("MULTIPLAYER"):
+		b.mouse_entered.connect(func(): _start_hover_particles(b))
+		b.mouse_exited.connect(func(): _stop_hover_particles(b))
 	return b
+
+# Short, looping digital pixels on both sides of the hovered menu entry.
+# Each pixel drifts upward only 10-16 pixels, fades, and respawns.
+func _start_hover_particles(button: Button) -> void:
+	if hover_particles.has(button):
+		return
+	var particles: Array = []
+	var tweens: Array = []
+	for side in 2:
+		for i in 3:
+			var pixel := ColorRect.new()
+			pixel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pixel.color = GOLD if i != 1 else Color("#fff0a0")
+			var dimension := 5.0 if i == 1 else 8.0
+			pixel.size = Vector2(dimension, dimension)
+			button.add_child(pixel)
+			var x_offset := -23.0 - float(i % 2) * 7.0 if side == 0 else button.size.x + 14.0 + float(i % 2) * 7.0
+			var origin := Vector2(x_offset, 18.0 + float(i) * 9.0)
+			pixel.position = origin
+			pixel.modulate.a = 0.0
+			var tween := create_tween().set_loops()
+			tween.tween_interval(float(i) * 0.13)
+			tween.tween_callback(func():
+				if is_instance_valid(pixel):
+					pixel.position = origin
+					pixel.modulate.a = 1.0
+			)
+			tween.set_parallel(true)
+			tween.tween_property(pixel, "position", origin + Vector2(0, -14), 0.7).set_trans(Tween.TRANS_SINE)
+			tween.tween_property(pixel, "modulate:a", 0.0, 0.7).set_trans(Tween.TRANS_SINE)
+			tween.set_parallel(false)
+			tween.tween_interval(0.15)
+			particles.append(pixel)
+			tweens.append(tween)
+	hover_particles[button] = {"pixels": particles, "tweens": tweens}
+
+func _stop_hover_particles(button: Button) -> void:
+	if not hover_particles.has(button):
+		return
+	var fx: Dictionary = hover_particles[button]
+	for tween in fx["tweens"]:
+		if tween.is_valid():
+			tween.kill()
+	for pixel in fx["pixels"]:
+		if is_instance_valid(pixel):
+			pixel.queue_free()
+	hover_particles.erase(button)

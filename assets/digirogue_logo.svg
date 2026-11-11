@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+<defs><linearGradient id="gold" x2="0" y2="1"><stop stop-color="#fff4a4"/><stop offset=".48" stop-color="#ffe15b"/><stop offset="1" stop-color="#ff9d12"/></linearGradient><linearGradient id="blue" x2="0" y2="1"><stop stop-color="#68d7ff"/><stop offset=".5" stop-color="#1689d2"/><stop offset="1" stop-color="#105a9d"/></linearGradient></defs>
+<path d="M60 92 H335 Q360 35 430 34 H770 Q840 35 865 92 H1140 L1170 265 H860 Q838 331 760 333 H440 Q362 331 340 265 H30 Z" fill="#071529" stroke="#c1d7f4" stroke-width="13"/>
+<path d="M72 105 H342 Q373 47 438 47 H762 Q827 47 858 105 H1128 L1144 251 H849 Q820 316 756 317 H444 Q380 316 351 251 H56 Z" fill="url(#blue)" stroke="#125c9e" stroke-width="15"/>
+<path d="M402 93 Q424 54 465 54 H735 Q776 54 798 93 Z" fill="#ffad21" stroke="#061328" stroke-width="9"/>
+<path d="M402 272 Q424 315 465 315 H735 Q776 315 798 272 Z" fill="#ffad21" stroke="#061328" stroke-width="9"/>
+<text x="600" y="88" font-family="DejaVu Sans, sans-serif" font-weight="900" font-size="36" text-anchor="middle" letter-spacing="9" fill="#fff0a4" stroke="#061328" stroke-width="1.8" paint-order="stroke">DIGITAL</text>
+<path d="M69 122 H1131 V238 H69 Z" fill="#071425" stroke="#02101f" stroke-width="9"/>
+<text x="600" y="216" font-family="DejaVu Sans, sans-serif" font-weight="900" font-style="italic" font-size="132" text-anchor="middle" textLength="1030" lengthAdjust="spacingAndGlyphs" fill="url(#gold)" stroke="#03101f" stroke-width="19" paint-order="stroke">DIGIROGUE</text>
+<text x="600" y="216" font-family="DejaVu Sans, sans-serif" font-weight="900" font-style="italic" font-size="132" text-anchor="middle" textLength="1030" lengthAdjust="spacingAndGlyphs" fill="url(#gold)" stroke="#66d7ef" stroke-width="5" paint-order="stroke">DIGIROGUE</text>
+<text x="600" y="306" font-family="DejaVu Sans, sans-serif" font-weight="900" font-size="30" text-anchor="middle" letter-spacing="6" fill="#fff2b3" stroke="#071425" stroke-width="2" paint-order="stroke">EXPEDITION</text>
+</svg>

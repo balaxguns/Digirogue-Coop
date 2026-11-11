@@ -15,6 +15,7 @@ var core_lbl: Label
 var drasil: OptionButton
 var mon_info: VBoxContainer
 var stage_info: VBoxContainer
+var equip_category: String = "All"
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -205,31 +206,75 @@ func _update_stage_details() -> void:
 			_label(move_row, str(moves[k][1]), 13, WHITE)
 
 # EQUIPMENT
+const EQUIP_CATEGORIES := ["All", "Damage", "Defense", "Health & Recovery", "Speed & Critical", "Utility"]
+func _equipment_category(fx: Dictionary) -> String:
+	# Categorize by the item's actual gameplay effects, not its name.
+	for key in fx.keys():
+		var k: String = str(key)
+		if k in ["hp", "heal_in", "phoenix"]:
+			return "Health & Recovery"
+		if k in ["spd", "aspd", "crit", "crit_dmg", "evade"]:
+			return "Speed & Critical"
+		if k in ["dr", "dr_phys", "dr_spec", "dr_elem", "dr_boss", "def", "dr_hi70"] or k.begins_with("td_"):
+			return "Defense"
+		if k in ["poison_dur", "stat_dur", "hazard", "sentinel"]:
+			return "Utility"
+	return "Damage"
+
 func build_equip() -> void:
 	var v := page("Equipment")
-	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
+	_section(v, "02  //  EQUIPMENT VAULT", "Permanent upgrades  •  Choose a category and equip up to three items.")
 	var summary := HFlowContainer.new()
-	summary.add_theme_constant_override("h_separation", 18)
+	summary.add_theme_constant_override("h_separation", 24)
 	summary.add_theme_constant_override("v_separation", 6)
 	v.add_child(summary)
 	_label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)
-	_label(summary, "COLLECTION  %d  •  PERMANENT UPGRADES" % Save.owned.size(), 13, MUTED)
-	var g := _grid(v, 3)
+	_label(summary, "OWNED  %d" % Save.owned.size(), 14, MUTED)
+	var filter_row := HFlowContainer.new()
+	filter_row.add_theme_constant_override("h_separation", 8)
+	filter_row.add_theme_constant_override("v_separation", 8)
+	v.add_child(filter_row)
+	for category in EQUIP_CATEGORIES:
+		var category_name: String = category
+		var filter_button := Button.new()
+		filter_button.text = category_name
+		filter_button.toggle_mode = true
+		filter_button.button_pressed = equip_category == category_name
+		filter_button.custom_minimum_size = Vector2(108, 36)
+		filter_button.pressed.connect(func():
+			equip_category = category_name
+			build_equip())
+		filter_row.add_child(filter_button)
+	var list_panel := _card(v, "INVENTORY  //  " + equip_category.to_upper(), CYAN)
 	var items: Array = Save.owned.duplicate()
 	items.sort_custom(func(a, b): return Data.equip[a.id].rar > Data.equip[b.id].rar)
-	if items.is_empty():
-		_label(v, "No equipment collected yet. Complete expeditions to earn permanent upgrades.", 16, WHITE)
+	var shown: int = 0
 	for o in items:
 		var d: Dictionary = Data.equip[o.id]
-		var equipped: bool = Save.equipped.has(int(o.u))
-		var b := Button.new()
-		b.toggle_mode = true
-		b.button_pressed = equipped
-		b.text = "%s  •  %s\n%s  —  %s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "AVAILABLE", d.name, d.desc]
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(250, 88)
+		if equip_category != "All" and _equipment_category(d.fx) != equip_category:
+			continue
+		shown += 1
 		var uid: int = int(o.u)
-		b.pressed.connect(func():
+		var equipped: bool = Save.equipped.has(uid)
+		var line := PanelContainer.new()
+		line.add_theme_stylebox_override("panel", _panel(Color("#102b50d9"), GOLD if equipped else Color("#35618c"), 1, 6))
+		list_panel.add_child(line)
+		var row := HFlowContainer.new()
+		row.add_theme_constant_override("h_separation", 12)
+		row.add_theme_constant_override("v_separation", 4)
+		line.add_child(row)
+		var info := VBoxContainer.new()
+		info.custom_minimum_size.x = 290
+		row.add_child(info)
+		_label(info, str(d.name), 15, GOLD if equipped else WHITE)
+		_label(info, str(Data.RARITIES[d.rar]) + "  •  " + _equipment_category(d.fx), 12, CYAN)
+		var effect := _label(row, str(d.desc), 13, MUTED)
+		effect.custom_minimum_size.x = 235
+		var action := Button.new()
+		action.text = "UNEQUIP" if equipped else "EQUIP"
+		action.custom_minimum_size = Vector2(100, 40)
+		action.disabled = not equipped and Save.equipped.size() >= 3
+		action.pressed.connect(func():
 			if Save.equipped.has(uid):
 				Save.equipped.erase(uid)
 			elif Save.equipped.size() < 3:
@@ -237,18 +282,20 @@ func build_equip() -> void:
 			Save.save_game()
 			build_equip()
 			build_exped())
-		g.add_child(b)
+		row.add_child(action)
+	if shown == 0:
+		_label(list_panel, "No equipment in this category yet.", 14, MUTED)
 
 # .MON FILES
 func build_mon() -> void:
 	var v := page(".mon Files")
 	_section(v, "03  //  MEMORY ARCHIVE", "Recover encrypted .mon records by evolving, exploring, and winning expeditions.")
-	var g := _grid(v, 4)
+	var g := _grid(v, 3)
 	for i in Data.ROSTER.size():
 		var idx: int = i
 		var b := Button.new()
 		b.text = "%s\nDECRYPTED  %d / 3" % [Data.ROSTER[i].stages[1], Save.mon_count(i)]
-		b.custom_minimum_size = Vector2(185, 66)
+		b.custom_minimum_size = Vector2(205, 68)
 		b.pressed.connect(func():
 			selected_mon = idx
 			_show_mon_details())

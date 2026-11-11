@@ -42,11 +42,12 @@ func _ready() -> void:
 	root.add_child(header)
 	header.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var top := HFlowContainer.new()
-	top.add_theme_constant_override("separation", 20)
+	top.add_theme_constant_override("h_separation", 16)
+	top.add_theme_constant_override("v_separation", 8)
 	header.add_child(top)
 	var heading := VBoxContainer.new()
-	heading.custom_minimum_size.x = 360
-	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.custom_minimum_size.x = 400
+	heading.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	top.add_child(heading)
 	_label(heading, "MALLOW  //  COMMAND NEXUS", 27, GOLD)
 	_label(heading, "DIGITAL WORLD  /  POCKET DIMENSION  /  EXPEDITION PREPARATION", 12, MUTED)
@@ -99,6 +100,7 @@ func page(n: String) -> VBoxContainer:
 
 func _label(parent: Node, content: String, font_size: int = 15, color: Color = WHITE) -> Label:
 	var l := Label.new()
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL if parent is VBoxContainer else Control.SIZE_SHRINK_BEGIN
 	l.text = content
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_font_size_override("font_size", font_size)
@@ -135,7 +137,7 @@ func _roster_button(parent: Node, i: int, active: bool, action: Callable) -> voi
 	var b := Button.new()
 	b.text = "%s\n%s  •  %s" % [r.stages[1], r.cls, r.attr]
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	b.custom_minimum_size = Vector2(185, 66)
+	b.custom_minimum_size = Vector2(205, 70)
 	b.toggle_mode = true
 	b.button_pressed = active
 	b.pressed.connect(action)
@@ -161,10 +163,11 @@ func build_digi() -> void:
 	detail.add_child(row)
 	_label(row, "STAGE", 13, CYAN)
 	var stage_picker := OptionButton.new()
-	stage_picker.custom_minimum_size = Vector2(220, 34)
+	stage_picker.custom_minimum_size = Vector2(255, 36)
+	stage_picker.clip_text = true
 	stage_picker.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	for stage in 5:
-		stage_picker.add_item("%s  //  %s" % [r.stages[stage], TIERS[stage]], stage)
+		stage_picker.add_item("%s  (%s)" % [r.stages[stage], ["In-Training", "Rookie", "Champion", "Ultimate", "Mega"][stage]], stage)
 	stage_picker.select(viewed_stage)
 	stage_picker.item_selected.connect(func(index: int):
 		viewed_stage = index
@@ -194,11 +197,11 @@ func _update_stage_details() -> void:
 	else:
 		var kinds := ["BASIC ATTACK  /  CLICK", "SPECIAL SKILL  /  Q", "ULTIMATE  /  R"]
 		for k in mini(3, moves.size()):
-			var move_row := HFlowContainer.new()
-			move_row.add_theme_constant_override("separation", 12)
+			var move_row := VBoxContainer.new()
+			move_row.add_theme_constant_override("separation", 2)
 			stage_info.add_child(move_row)
 			var move_name := _label(move_row, kinds[k] + "  •  " + str(moves[k][0]), 13, CYAN)
-			move_name.custom_minimum_size.x = 180
+			move_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			_label(move_row, str(moves[k][1]), 13, WHITE)
 
 # EQUIPMENT
@@ -206,7 +209,8 @@ func build_equip() -> void:
 	var v := page("Equipment")
 	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
 	var summary := HFlowContainer.new()
-	summary.add_theme_constant_override("separation", 18)
+	summary.add_theme_constant_override("h_separation", 18)
+	summary.add_theme_constant_override("v_separation", 6)
 	v.add_child(summary)
 	_label(summary, "EQUIPPED  %d / 3" % Save.equipped.size(), 15, GOLD)
 	_label(summary, "COLLECTION  %d  •  PERMANENT UPGRADES" % Save.owned.size(), 13, MUTED)
@@ -223,7 +227,7 @@ func build_equip() -> void:
 		b.button_pressed = equipped
 		b.text = "%s  •  %s\n%s  —  %s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "AVAILABLE", d.name, d.desc]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(210, 70)
+		b.custom_minimum_size = Vector2(250, 88)
 		var uid: int = int(o.u)
 		b.pressed.connect(func():
 			if Save.equipped.has(uid):
@@ -285,12 +289,13 @@ func build_exped() -> void:
 		_label(equip, "NOTICE  •  Full moveset for this line is still in development.", 13, GOLD)
 	var gateway := _card(v, "FALSE DRASIL  //  TARGET SELECTION", GOLD)
 	drasil = OptionButton.new()
-	drasil.custom_minimum_size = Vector2(400, 48)
+	drasil.custom_minimum_size = Vector2(280, 44)
+	drasil.clip_text = true
 	drasil.add_item("FALSE DRASIL 01   /   ANGEMON + DEVIMON")
 	gateway.add_child(drasil)
 	var go := Button.new()
 	go.text = "▶  BEGIN EXPEDITION"
-	go.custom_minimum_size = Vector2(360, 70)
+	go.custom_minimum_size = Vector2(280, 60)
 	go.add_theme_font_size_override("font_size", 22)
 	go.pressed.connect(start)
 	gateway.add_child(go)

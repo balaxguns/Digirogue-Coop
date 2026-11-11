@@ -63,18 +63,22 @@ func _setup_terrain() -> void:
 	terrain_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	terrain_view.size = Vector2i(1280, 720)
 	add_child(terrain_view)
-	var terrain := load("res://scenes/terrain_preview.tscn").instantiate()
+	var terrain_scene: PackedScene = preload("res://scenes/terrain_preview.tscn")
+	var terrain: Node3D = terrain_scene.instantiate() as Node3D
 	terrain.set_process(false)
 	terrain.set_process_unhandled_input(false)
 	terrain_view.add_child(terrain)
-	terrain_camera = terrain.camera
+	terrain_camera = terrain.get("camera") as Camera3D
+	if terrain_camera == null:
+		push_error("3D terrain camera was not created.")
+		return
 	terrain_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	terrain_camera.rotation = Vector3(-PI / 2.0, 0, 0)
 	terrain_camera.position = Vector3(0, 450, 0)
 	terrain_camera.size = 720.0 * TERRAIN_SCALE
 	terrain_camera.current = true
 	# Preview's screen-space legend is not part of the live expedition.
-	for child in terrain.get_children():
+	for child: Node in terrain.get_children():
 		if child is CanvasLayer:
 			child.hide()
 

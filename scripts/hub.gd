@@ -172,7 +172,7 @@ func build_digi() -> void:
 	var chain: Array[String] = []
 	for st in 5:
 		chain.append(str(r.stages[st]))
-	_label(v, "DIGIVOLUTION PATH   " + "  ›  ".join(chain), 13, MUTED)
+	_label(v, "DIGIVOLUTION PATH   " + "  ›  ".join(PackedStringArray(chain)), 13, MUTED)
 
 # EQUIPMENT
 func build_equip() -> void:

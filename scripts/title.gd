@@ -5,6 +5,7 @@ const GOLD := Color("#ffdc3d")
 const IMAGE_SIZE := Vector2(1672, 941)
 var settings_panel: PanelContainer
 var active_effects: Dictionary = {}
+var hover_buttons: Array[Button] = []
 
 func _ready() -> void:
 	Save.apply_settings()
@@ -42,49 +43,52 @@ func _add_menu_button(_caption: String, bounds: Rect2, action: Callable, unavail
 	add_child(b)
 	if not unavailable:
 		b.pressed.connect(action)
-		b.mouse_entered.connect(func(): _begin_effect(b))
-		b.mouse_exited.connect(func(): _end_effect(b))
+		hover_buttons.append(b)
+
+func _process(_delta: float) -> void:
+	# Poll the actual pointer position: transparent artwork overlays can prevent
+	# mouse_entered signals from behaving consistently across window sizes.
+	var pointer := get_global_mouse_position()
+	for b in hover_buttons:
+		if b.get_global_rect().has_point(pointer) and not settings_panel.visible:
+			_begin_effect(b)
+		else:
+			_end_effect(b)
 
 func _begin_effect(b: Button) -> void:
 	if active_effects.has(b):
 		return
+	# Draw above the full-screen art, independent of button clipping.
 	var overlay := Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(overlay)
-	var frame := Panel.new()
-	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var outline := Panel.new()
+	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outline.position = b.position
+	outline.size = b.size
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color.TRANSPARENT
 	style.border_color = GOLD
-	style.set_border_width_all(3)
+	style.set_border_width_all(4)
 	style.set_corner_radius_all(8)
-	frame.add_theme_stylebox_override("panel", style)
-	overlay.add_child(frame)
+	outline.add_theme_stylebox_override("panel", style)
+	overlay.add_child(outline)
 	var tweens: Array = []
 	for side in 2:
 		for i in 4:
 			var pixel := ColorRect.new()
 			pixel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			pixel.color = GOLD if i % 2 == 0 else Color("#fff3a1")
-			var edge_x := -17.0 if side == 0 else b.size.x + 9.0
-			var origin := Vector2(edge_x + float(i % 2) * (6.0 if side == 1 else -6.0), 15.0 + float(i) * 12.0)
+			pixel.size = Vector2(8, 8)
+			var x := b.position.x - 19.0 - float(i % 2) * 7.0 if side == 0 else b.position.x + b.size.x + 11.0 + float(i % 2) * 7.0
+			var origin := Vector2(x, b.position.y + 12.0 + float(i) * 13.0)
 			pixel.position = origin
-			pixel.size = Vector2(6, 6)
-			pixel.modulate.a = 0.0
 			overlay.add_child(pixel)
 			var tw := create_tween().set_loops()
-			tw.tween_interval(float(i) * 0.11)
-			tw.tween_callback(func():
-				if is_instance_valid(pixel):
-					pixel.position = origin
-					pixel.modulate.a = 1.0)
-			tw.set_parallel(true)
-			tw.tween_property(pixel, "position", origin + Vector2(0, -13), 0.65)
-			tw.tween_property(pixel, "modulate:a", 0.0, 0.65)
-			tw.set_parallel(false)
-			tw.tween_interval(0.13)
+			tw.tween_property(pixel, "position", origin + Vector2(0, -14), 0.72).from(origin)
+			tw.parallel().tween_property(pixel, "modulate:a", 0.0, 0.72).from(1.0)
+			tw.tween_interval(0.12 + float(i) * 0.08)
 			tweens.append(tw)
 	active_effects[b] = {"overlay": overlay, "tweens": tweens}
 

@@ -27,29 +27,37 @@ func _ready() -> void:
 	add_child(bg)
 	var margins := MarginContainer.new()
 	margins.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margins.add_theme_constant_override("margin_left", 22)
-	margins.add_theme_constant_override("margin_right", 22)
-	margins.add_theme_constant_override("margin_top", 18)
-	margins.add_theme_constant_override("margin_bottom", 18)
+	margins.add_theme_constant_override("margin_left", 12)
+	margins.add_theme_constant_override("margin_right", 12)
+	margins.add_theme_constant_override("margin_top", 10)
+	margins.add_theme_constant_override("margin_bottom", 10)
 	add_child(margins)
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 12)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 8)
 	margins.add_child(root)
 	var header := PanelContainer.new()
 	header.add_theme_stylebox_override("panel", _panel(Color("#0c2452ee"), CYAN, 2, 14))
 	root.add_child(header)
+	header.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 20)
 	header.add_child(top)
 	var heading := VBoxContainer.new()
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.size_flags_stretch_ratio = 3.0
 	top.add_child(heading)
 	_label(heading, "MALLOW  //  COMMAND NEXUS", 27, GOLD)
 	_label(heading, "DIGITAL WORLD  /  POCKET DIMENSION  /  EXPEDITION PREPARATION", 12, MUTED)
 	core_lbl = _label(top, "", 18, GOLD)
+	core_lbl.custom_minimum_size = Vector2(185, 0)
+	core_lbl.size_flags_horizontal = Control.SIZE_SHRINK_END
+	core_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	core_lbl.clip_text = true
 	var back := Button.new()
 	back.text = "← TITLE SCREEN"
-	back.custom_minimum_size = Vector2(160, 48)
+	back.custom_minimum_size = Vector2(150, 46)
 	back.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
 	top.add_child(back)
 	if not Run.last_result.is_empty():
@@ -61,10 +69,11 @@ func _ready() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_theme_stylebox_override("panel", _panel(Color("#0b1b40ee"), CYAN, 2, 14))
 	root.add_child(tabs)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for n in ["Mercenary Digimon", "Equipment", ".mon Files", "Expedition"]:
 		var sc := ScrollContainer.new()
 		sc.name = n
-		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 		tabs.add_child(sc)
 		var v := VBoxContainer.new()
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -74,7 +83,7 @@ func _ready() -> void:
 	build_all()
 
 func build_all() -> void:
-	core_lbl.text = "◈ DIGICORE  %d" % Save.core
+	core_lbl.text = "◈  %d DIGICORE" % Save.core
 	build_digi()
 	build_equip()
 	build_mon()
@@ -124,7 +133,7 @@ func _roster_button(parent: Node, i: int, active: bool, action: Callable) -> voi
 	var b := Button.new()
 	b.text = "%s\n%s  •  %s" % [r.stages[1], r.cls, r.attr]
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	b.custom_minimum_size = Vector2(225, 72)
+	b.custom_minimum_size = Vector2(185, 66)
 	b.toggle_mode = true
 	b.button_pressed = active
 	b.pressed.connect(action)
@@ -134,7 +143,7 @@ func _roster_button(parent: Node, i: int, active: bool, action: Callable) -> voi
 func build_digi() -> void:
 	var v := page("Mercenary Digimon")
 	_section(v, "01  //  MERCENARY DATABASE", "Choose a partner, then select an evolution stage from the dropdown to inspect its abilities.")
-	var g := _grid(v, 4)
+	var g := _grid(v, 3)
 	for i in Data.ROSTER.size():
 		var idx: int = i
 		_roster_button(g, i, i == sel, func():
@@ -191,7 +200,7 @@ func build_equip() -> void:
 	_section(v, "02  //  EQUIPMENT VAULT", "Permanent expedition upgrades. Equip up to three pieces; select a card to toggle it.")
 	var summary := _card(v, "LOADOUT STATUS  //  %d / 3 EQUIPPED" % Save.equipped.size(), GOLD)
 	_label(summary, "COLLECTION  %d ITEMS    •    EQUIPMENT PERSISTS BETWEEN EXPEDITIONS" % Save.owned.size(), 14, MUTED)
-	var g := _grid(v, 3)
+	var g := _grid(v, 2)
 	var items: Array = Save.owned.duplicate()
 	items.sort_custom(func(a, b): return Data.equip[a.id].rar > Data.equip[b.id].rar)
 	if items.is_empty():
@@ -204,7 +213,7 @@ func build_equip() -> void:
 		b.button_pressed = equipped
 		b.text = "%s  •  %s\n%s\n%s" % [Data.RARITIES[d.rar], "EQUIPPED" if equipped else "IN VAULT", d.name, d.desc]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(300, 105)
+		b.custom_minimum_size = Vector2(250, 98)
 		var uid: int = int(o.u)
 		b.pressed.connect(func():
 			if Save.equipped.has(uid):
@@ -225,7 +234,7 @@ func build_mon() -> void:
 		var idx: int = i
 		var b := Button.new()
 		b.text = "%s\nDECRYPTED  %d / 3" % [Data.ROSTER[i].stages[1], Save.mon_count(i)]
-		b.custom_minimum_size = Vector2(225, 68)
+		b.custom_minimum_size = Vector2(185, 66)
 		b.pressed.connect(func():
 			selected_mon = idx
 			_show_mon_details())

@@ -1,6 +1,7 @@
 extends Node3D
 ## Shared expedition terrain renderer. Gameplay coordinates remain authoritative in run.gd.
 const SCALE := 0.20
+const CAMERA_TILT := 0.48 # radians from vertical; maintains aligned ground projection
 const COLORS := [
 	Color("#243c2b"), Color("#718fa6"), Color("#8e7048"),
 	Color("#42475b"), Color("#31565d"), Color("#553b36")
@@ -29,10 +30,15 @@ func _ready() -> void:
 	add_child(sun)
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.rotation = Vector3(-PI / 2.0, 0, 0)
+	camera.rotation = Vector3(-PI / 2.0 + CAMERA_TILT, 0, 0)
 	camera.position = Vector3(0, 550, 0)
 	camera.current = true
 	add_child(camera)
+	# Compensate for foreshortening so the 3D ground remains registered
+	# with the existing 2D player, enemies, projectiles and collision grid.
+	var stretch: float = 1.0 / cos(CAMERA_TILT)
+	geometry.scale.z = stretch
+	digital_props.scale.z = stretch
 
 func _mat(color: Color) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -123,4 +129,7 @@ func rebuild(biomes: PackedByteArray, obstacles: Array, landmarks: Array) -> voi
 
 func follow(world_center: Vector2, viewport_height: float) -> void:
 	camera.position = _position(world_center, 550.0)
+	# At a tilted angle the projected ground center must be offset to match
+	# the camera target (rather than allowing a fixed vertical displacement).
+	camera.position.z += 550.0 * tan(CAMERA_TILT)
 	camera.size = viewport_height * SCALE

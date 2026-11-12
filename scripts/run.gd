@@ -238,7 +238,9 @@ func gen_obs() -> void:
 			# Only major silhouettes are solid. Undergrowth and small debris are not.
 			var seed: int = gy * 1009 + gx * 83 + b * 31
 			if seed % 3 == 0:
-				add_obs(p + Vector2(45, -40), 24.0, true)
+				var trunk_pos: Vector2 = p + Vector2(45, -40)
+				if obs_ok(trunk_pos):
+					add_obs(trunk_pos, 24.0, true)
 	for i in 90:
 		var p: Vector2 = R.cpos + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * R.cr
 		var dir := randf() * TAU

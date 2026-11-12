@@ -35,7 +35,7 @@ func _material(color: Color, pattern: int = 0, glow: bool = false) -> StandardMa
 			var n: float = noise.get_noise_2d(float(x), float(y))
 			var variation: float = 0.79 + n * 0.23
 			if pattern == 2:
-				var seam: bool = (y % 15 == 0) or (x % 22 == 0 and (y / 15) % 2 == 0)
+				var seam: bool = (y % 15 == 0) or (x % 22 == 0 and int(y / 15) % 2 == 0)
 				if seam:
 					variation *= 0.48
 			elif pattern == 3 and (x % 12 == 0 or y % 12 == 0):

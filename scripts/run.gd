@@ -1,7 +1,7 @@
 extends Node2D
 ## The expedition: map generation, nights, corruption, combat, bosses, rewards.
-const WORLD := 6000.0
-const GRID := 60
+const WORLD := 9000.0
+const GRID := 90
 const BOSS_PAT := {"reppamon": ["razor", "roll", "razor"], "sangloupmon": ["blades", "vdash", "fang"], "angemon": ["fist", "shackles", "beam", "fist"], "devimon": ["dclaw", "wing", "glare", "touch"]}
 const BOSS_DMG := 2.0
 const BOSS_SCALE := {"sangloupmon": 0.88}
@@ -128,8 +128,8 @@ func start_night() -> void:
 	say("Night %d begins. Stay inside the safe zone." % R.night)
 
 func make_chain() -> Array:
-	var c := [{"pos": Vector2(WORLD / 2.0, WORLD / 2.0), "r": 3300.0}]
-	for r in [1600.0, 520.0]:
+	var c := [{"pos": Vector2(WORLD / 2.0, WORLD / 2.0), "r": 4800.0}]
+	for r in [2300.0, 700.0]:
 		var p: Dictionary = c[c.size() - 1]
 		var q: Vector2 = p.pos + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * (p.r - r)
 		c.append({"pos": Vector2(clampf(q.x, 400.0, WORLD - 400.0), clampf(q.y, 400.0, WORLD - 400.0)), "r": r})
@@ -140,25 +140,32 @@ func bio_at(p: Vector2) -> int:
 	return bio[clampi(int(p.y / 100.0), 0, GRID - 1) * GRID + clampi(int(p.x / 100.0), 0, GRID - 1)]
 
 func gen_bio() -> void:
-	var ids := [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5]
-	ids.shuffle()
+	# Six large, contiguous regions; centers are deliberately spaced around the map.
+	# Every region receives its own reachable encounter landmark.
+	var order := [0, 1, 2, 3, 4, 5]
+	order.shuffle()
+	var centers := [
+		Vector2(1800, 1800), Vector2(4500, 1800), Vector2(7200, 1800),
+		Vector2(1800, 6900), Vector2(4500, 6900), Vector2(7200, 6900)
+	]
 	var seeds: Array = []
-	for b in ids:
-		seeds.append({"b": b, "pos": Vector2(randf_range(300, WORLD - 300), randf_range(300, WORLD - 300))})
+	for i in 6:
+		var center: Vector2 = centers[i] + Vector2(randf_range(-350, 350), randf_range(-350, 350))
+		seeds.append({"b": order[i], "pos": center})
 	bio.resize(GRID * GRID)
 	for gy in GRID:
 		for gx in GRID:
-			var h: int = ((gx * 73856093) ^ (gy * 19349663)) & 0x7fffffff
-			var bd := 1e9
-			var bb := 0
-			for s in seeds:
-				var d: float = Vector2(gx * 100.0 + 50.0, gy * 100.0 + 50.0).distance_to(s.pos) + float(((h ^ int(s.pos.x * 31.0)) & 0x7fffffff) % 90)
-				if d < bd:
-					bd = d
-					bb = s.b
-			bio[gy * GRID + gx] = bb
-	for i in 6:
-		areas.append({"n": Data.BIOMES[seeds[i].b].name, "pos": seeds[i].pos})
+			var point := Vector2(gx * 100.0 + 50.0, gy * 100.0 + 50.0)
+			var best := INF
+			var chosen := 0
+			for seed in seeds:
+				var distance: float = point.distance_squared_to(seed.pos)
+				if distance < best:
+					best = distance
+					chosen = int(seed.b)
+			bio[gy * GRID + gx] = chosen
+	for seed in seeds:
+		areas.append({"n": Data.BIOMES[seed.b].name, "pos": seed.pos, "b": seed.b})
 
 func add_obs(p: Vector2, r: float) -> void:
 	var o := {"pos": p, "r": r, "b": bio_at(p)}
@@ -190,6 +197,9 @@ func hits_obs(p: Vector2) -> bool:
 	return false
 
 func obs_ok(p: Vector2) -> bool:
+	for spot in spots:
+		if p.distance_to(spot.pos) < float(spot.r) + 95.0:
+			return false
 	return p.distance_to(R.fc) > 600.0 and p.distance_to(R.cpos) < R.cr + 100.0 and p.x > 40 and p.y > 40 and p.x < WORLD - 40 and p.y < WORLD - 40
 
 func gen_obs() -> void:
@@ -247,37 +257,39 @@ func add_mini(p: Vector2) -> void:
 
 func gen_map() -> void:
 	gen_bio()
+	# Reserve clear, traversable landmark spaces before placing collidable terrain.
+	var spawn_pos := Vector2(WORLD * 0.5, WORLD * 0.5)
+	P.pos = spawn_pos
+	spots.append({"pos": spawn_pos, "r": 260.0, "k": "start"})
+	for area in areas:
+		spots.append({"pos": area.pos, "r": 200.0, "k": "mini"})
+		# Every biome gets a guaranteed miniboss and a local enemy population.
+		add_mini(area.pos)
+		for group in 6:
+			var angle: float = (float(group) / 6.0) * TAU + randf_range(-0.2, 0.2)
+			var home: Vector2 = area.pos + Vector2.from_angle(angle) * randf_range(280.0, 650.0)
+			home = home.clamp(Vector2(140, 140), Vector2(WORLD - 140, WORLD - 140))
+			if bio_at(home) != int(area.b):
+				home = area.pos + Vector2.from_angle(angle) * 250.0
+			spots.append({"pos": home, "r": 75.0, "k": "patrol"})
+			for k in 4:
+				var position: Vector2 = home + Vector2.from_angle(float(k) * TAU / 4.0) * 36.0
+				add_mob(position, k == 0, home, 500.0)
+		var heal_pos: Vector2 = area.pos + Vector2(210, 0)
+		camps.append({"pos": heal_pos, "used": false, "w": 0.0})
+		chests.append({"pos": area.pos + Vector2(-210, 0), "open": false, "mon": false})
+	# Obstacle placement respects reserved paths and encounter landmarks.
 	gen_obs()
-	var ps = add_spot(260.0, 0.0, "start")
-	P.pos = ps.pos if ps != null else R.cpos + Vector2(600, 0)
-	for i in 6:
-		var ms = add_spot(120.0, 500.0, "mini")
-		if ms == null: break
-		add_mini(ms.pos)
-	for i in 40:
-		var s = add_spot(150.0, 150.0, "camp")
-		if s == null: break
-		for k in 4:
-			add_mob(s.pos + Vector2.from_angle(k / 4.0 * TAU + randf()) * randf_range(30.0, 70.0), k == 0, s.pos, 480.0)
-		chests.append({"pos": s.pos, "open": false, "mon": false})
-	for i in 24:
-		var s = add_spot(70.0, 100.0, "roam")
-		if s == null: break
-		for k in 2 + randi() % 2:
-			add_mob(s.pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)), false, s.pos, 380.0)
-	for i in 3:
-		var s = add_spot(60.0, 400.0, "heal")
-		if s != null: camps.append({"pos": s.pos, "used": false, "w": 0.0})
-	var t := 0
-	var made := 0
-	while made < 14 and t < 1500 and not obs.is_empty():
-		t += 1
-		var o: Dictionary = obs.pick_random()
-		var p: Vector2 = o.pos + Vector2.from_angle(randf() * TAU) * (o.r + 40.0)
-		if is_free(p, 10.0, 60.0):
-			spots.append({"pos": p, "r": 10.0, "k": "chest"})
-			chests.append({"pos": p, "open": false, "mon": false})
-			made += 1
+	for i in 18:
+		var spot = add_spot(85.0, 110.0, "roam")
+		if spot == null:
+			continue
+		for k in 3:
+			add_mob(spot.pos + Vector2.from_angle(float(k) * TAU / 3.0) * 30.0, false, spot.pos, 380.0)
+	for i in 22:
+		var spot = add_spot(35.0, 75.0, "chest")
+		if spot != null:
+			chests.append({"pos": spot.pos, "open": false, "mon": false})
 	if not chests.is_empty():
 		chests.pick_random().mon = true
 

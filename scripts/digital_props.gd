@@ -227,7 +227,16 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 	for obstacle in obstacles:
 		var biome: int = int(obstacle.b)
 		if obstacle.get("scenery", false):
-			_place(biome, obstacle.pos, int(obstacle.pos.x + obstacle.pos.y))
+			if biome == 5 and float(obstacle.r) > 90.0:
+				var mountain := _p(obstacle.pos)
+				_add("cone", Color("#393036"), mountain + Vector3(0, 26, 0), Vector3(125, 52, 125), 0, 1)
+				_add("cone", Color("#564047"), mountain + Vector3(0, 58, 0), Vector3(72, 38, 72), 0, 1)
+				_add("sphere", Color("#ff6b35"), mountain + Vector3(0, 78, 0), Vector3(28, 3, 28), 0, 3, true)
+				for stream in 5:
+					var theta: float = float(stream) * TAU / 5.0
+					_add("box", Color("#dd4c2e"), mountain + Vector3(cos(theta) * 45, 13, sin(theta) * 45), Vector3(6, 1, 65), theta, 3, true)
+			else:
+				_place(biome, obstacle.pos, int(obstacle.pos.x + obstacle.pos.y))
 			continue
 		var radius: float = float(obstacle.r) * S
 		var base := _p(obstacle.pos)

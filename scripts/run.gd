@@ -69,7 +69,7 @@ func _sync_terrain() -> void:
 	var target := Vector2i(maxi(1, int(viewport_size.x)), maxi(1, int(viewport_size.y)))
 	if terrain_view.size != target:
 		terrain_view.size = target
-	terrain_world.follow(cam.get_screen_center_position(), viewport_size.y)
+	terrain_world.call("follow", cam.get_screen_center_position(), viewport_size.y)
 
 func nm() -> String:
 	return Data.ROSTER[P.line].stages[P.stage]
@@ -146,7 +146,7 @@ func start_night() -> void:
 	R.fog = PackedByteArray()
 	R.fog.resize(GRID * GRID)
 	gen_map()
-	terrain_world.rebuild(bio, obs, areas)
+	terrain_world.call("rebuild", bio, obs, areas)
 	say("Night %d begins. Stay inside the safe zone." % R.night)
 
 func make_chain() -> Array:

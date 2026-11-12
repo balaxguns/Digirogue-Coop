@@ -99,6 +99,36 @@ func rebuild(biomes: PackedByteArray, obstacles: Array, landmarks: Array) -> voi
 	for b in 6:
 		_batch(column, rock_colors[b].lightened(0.15), monuments[b])
 
+	# Sparse large-scale biome props are batched by mesh and biome.
+	# Placement is decorative only; all solid objects use run.gd's obstacle positions.
+	var trunks: Array = [[], [], [], [], [], []]
+	var crowns: Array = [[], [], [], [], [], []]
+	var trunk_mesh := CylinderMesh.new()
+	trunk_mesh.top_radius = 0.55
+	trunk_mesh.bottom_radius = 1.0
+	trunk_mesh.height = 1.0
+	trunk_mesh.radial_segments = 6
+	var crown_mesh := SphereMesh.new()
+	crown_mesh.radius = 1.0
+	crown_mesh.height = 2.0
+	crown_mesh.radial_segments = 8
+	crown_mesh.rings = 4
+	for area in landmarks:
+		var biome: int = int(area.b)
+		for i in 60:
+			var angle: float = float(i) * 2.399963
+			var distance: float = 450.0 + float((i * 173 + biome * 91) % 730)
+			var point: Vector2 = area.pos + Vector2.from_angle(angle) * distance
+			point = point.clamp(Vector2(70, 70), Vector2(8930, 8930))
+			var size: float = (14.0 + float((i * 19) % 15)) * SCALE
+			trunks[biome].append(Transform3D(Basis().scaled(Vector3(size * 0.3, size * 2.5, size * 0.3)), _position(point, size * 1.25)))
+			crowns[biome].append(Transform3D(Basis().scaled(Vector3(size, size * 1.4, size)), _position(point, size * 3.0)))
+	var trunk_colors := [Color("#423c32"), Color("#d6ecf5"), Color("#9b7550"), Color("#434e62"), Color("#355b53"), Color("#352b30")]
+	var crown_colors := [Color("#345b40"), Color("#b4e0f1"), Color("#bd9a63"), Color("#4a8a9b"), Color("#528b77"), Color("#9d5140")]
+	for b in 6:
+		_batch(trunk_mesh, trunk_colors[b], trunks[b])
+		_batch(crown_mesh, crown_colors[b], crowns[b])
+
 func follow(world_center: Vector2, viewport_height: float) -> void:
 	camera.position = _position(world_center, 550.0)
 	camera.size = viewport_height * SCALE

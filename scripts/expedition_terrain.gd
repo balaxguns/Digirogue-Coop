@@ -7,10 +7,13 @@ const COLORS := [
 ]
 var camera: Camera3D
 var geometry: Node3D
+var digital_props: Node3D
 
 func _ready() -> void:
 	geometry = Node3D.new()
 	add_child(geometry)
+	digital_props = preload("res://scripts/digital_props.gd").new()
+	add_child(digital_props)
 	var environment := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -67,19 +70,7 @@ func rebuild(biomes: PackedByteArray, obstacles: Array, landmarks: Array) -> voi
 			tiles[b].append(Transform3D(Basis(), _position(Vector2(x * 100.0 + 50.0, y * 100.0 + 50.0), -1.0)))
 	for b in 6:
 		_batch(ground, COLORS[b], tiles[b])
-	var rocks: Array = [[], [], [], [], [], []]
-	var stone := CylinderMesh.new()
-	stone.top_radius = 0.75
-	stone.bottom_radius = 1.0
-	stone.height = 1.0
-	stone.radial_segments = 7
-	for obstacle in obstacles:
-		var radius: float = float(obstacle.r) * SCALE
-		var biome: int = int(obstacle.b)
-		rocks[biome].append(Transform3D(Basis().scaled(Vector3(radius, radius * 2.0, radius)), _position(obstacle.pos, radius)))
 	var rock_colors := [Color("#425846"), Color("#a3c5da"), Color("#9b7851"), Color("#667082"), Color("#4c7777"), Color("#6b4b45")]
-	for b in 6:
-		_batch(stone, rock_colors[b], rocks[b])
 	# Distinct biome landmarks: forest pillars, icy spires, sandstone ruins,
 	# industrial towers, marsh stones, and volcanic basalt columns.
 	var column := CylinderMesh.new()
@@ -128,6 +119,7 @@ func rebuild(biomes: PackedByteArray, obstacles: Array, landmarks: Array) -> voi
 	for b in 6:
 		_batch(trunk_mesh, trunk_colors[b], trunks[b])
 		_batch(crown_mesh, crown_colors[b], crowns[b])
+	digital_props.call("populate", landmarks, obstacles)
 
 func follow(world_center: Vector2, viewport_height: float) -> void:
 	camera.position = _position(world_center, 550.0)

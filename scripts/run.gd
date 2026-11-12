@@ -43,6 +43,11 @@ var terrain_view: SubViewport
 var terrain_camera: Camera3D
 var terrain_root: Node3D
 var terrain_props: Node3D
+var terrain_actors: Node3D
+var actor_player: MeshInstance3D
+var actor_boss: MeshInstance3D
+var actor_mobs: MultiMeshInstance3D
+var actor_shots: MultiMeshInstance3D
 const TERRAIN_SCALE := 2400.0 / WORLD
 
 func _ready() -> void:
@@ -74,6 +79,9 @@ func _setup_terrain() -> void:
 	terrain_view.add_child(terrain)
 	terrain_props = Node3D.new()
 	terrain_root.add_child(terrain_props)
+	terrain_actors = Node3D.new()
+	terrain_root.add_child(terrain_actors)
+	_build_3d_actors()
 	terrain_camera = terrain.get("camera") as Camera3D
 	if terrain_camera == null:
 		push_error("3D terrain camera was not created.")
@@ -87,6 +95,77 @@ func _setup_terrain() -> void:
 	for child: Node in terrain.get_children():
 		if child is CanvasLayer:
 			child.hide()
+
+func _world3(p: Vector2, height: float = 0.0) -> Vector3:
+	return Vector3((p.x - WORLD * 0.5) * TERRAIN_SCALE, height, (p.y - WORLD * 0.5) * TERRAIN_SCALE)
+
+func _actor_material(color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.72
+	return mat
+
+func _build_3d_actors() -> void:
+	var body_mesh := SphereMesh.new()
+	body_mesh.radius = 1.0
+	body_mesh.height = 2.0
+	body_mesh.radial_segments = 12
+	body_mesh.rings = 6
+	actor_player = MeshInstance3D.new()
+	actor_player.mesh = body_mesh
+	actor_player.material_override = _actor_material(Color("#66dfff"))
+	terrain_actors.add_child(actor_player)
+	actor_boss = MeshInstance3D.new()
+	actor_boss.mesh = body_mesh
+	actor_boss.material_override = _actor_material(Color("#ff685f"))
+	terrain_actors.add_child(actor_boss)
+	actor_mobs = MultiMeshInstance3D.new()
+	var mob_mesh := MultiMesh.new()
+	mob_mesh.transform_format = MultiMesh.TRANSFORM_3D
+	mob_mesh.mesh = body_mesh
+	mob_mesh.use_colors = true
+	mob_mesh.instance_count = 0
+	actor_mobs.multimesh = mob_mesh
+	terrain_actors.add_child(actor_mobs)
+	actor_shots = MultiMeshInstance3D.new()
+	var shot_mesh := MultiMesh.new()
+	shot_mesh.transform_format = MultiMesh.TRANSFORM_3D
+	shot_mesh.mesh = body_mesh
+	shot_mesh.instance_count = 0
+	actor_shots.multimesh = shot_mesh
+	actor_shots.material_override = _actor_material(Color("#ffdc72"))
+	terrain_actors.add_child(actor_shots)
+
+func _sync_3d_actors() -> void:
+	if terrain_actors == null:
+		return
+	var active: bool = R.mode == "night"
+	terrain_actors.visible = active
+	if not active:
+		return
+	var player_radius: float = (P.r + P.stage * 3.0) * TERRAIN_SCALE
+	actor_player.scale = Vector3.ONE * player_radius
+	actor_player.position = _world3(P.pos, player_radius)
+	actor_player.visible = not P.downed
+	actor_boss.visible = boss != null
+	if boss != null:
+		var boss_radius: float = float(boss.r) * TERRAIN_SCALE
+		actor_boss.scale = Vector3.ONE * boss_radius
+		actor_boss.position = _world3(boss.pos, boss_radius)
+	var mm: MultiMesh = actor_mobs.multimesh
+	mm.instance_count = mobs.size()
+	for i in mobs.size():
+		var enemy: Dictionary = mobs[i]
+		var radius: float = float(enemy.r) * TERRAIN_SCALE
+		var pos: Vector3 = _world3(enemy.pos, radius)
+		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), pos))
+		mm.set_instance_color(i, Color("#e6a968") if enemy.get("el", false) else Color("#b48de3"))
+	var sm: MultiMesh = actor_shots.multimesh
+	sm.instance_count = shots.size()
+	for i in shots.size():
+		var shot: Dictionary = shots[i]
+		var radius: float = float(shot.r) * TERRAIN_SCALE
+		sm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), _world3(shot.pos, radius)))
 
 func _rebuild_terrain_props() -> void:
 	if terrain_props == null:
@@ -872,6 +951,7 @@ func _physics_process(dt: float) -> void:
 	if R.over: return
 	update(dt)
 	_sync_terrain()
+	_sync_3d_actors()
 	queue_redraw()
 	hud.refresh()
 
@@ -1214,7 +1294,10 @@ func _draw() -> void:
 			draw_texture_rect(terrain_view.get_texture(), Rect2(screen_center - vp * 0.5, vp), false)
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
-		# Old randomly assigned 2D biome labels are hidden until biome data is aligned.
+		# Characters, enemies, projectiles, camps, and obstacles now share
+		# one 3D coordinate system. No duplicate 2D world entities.
+		draw_arc(R.cpos, R.cr, 0.0, TAU, 128, Color("#c77dff"), 3.0)
+		return
 	else:
 		draw_rect(B, Color("#14101f"))
 	draw_rect(B, Color("#8a7cc0"), false, 3.0)

@@ -23,46 +23,63 @@ func _material(color: Color, pattern: int = 0, glow: bool = false) -> StandardMa
 		return materials[key]
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
-	m.roughness = 0.93 if pattern == 1 else (0.48 if pattern == 2 else 0.64)
-	m.metallic = 0.48 if pattern == 2 else (0.12 if pattern == 3 else 0.0)
-	# Tileable, layered procedural surface color and fine bump maps.
-	# Material instances are shared across all MultiMesh props of a type.
+	m.roughness = 0.88 if pattern == 1 else (0.43 if pattern == 2 else 0.57)
+	m.metallic = 0.55 if pattern == 2 else (0.2 if pattern == 3 else 0.0)
+	# Distinct hand-directed procedural surfaces: organic bark/foliage, worn
+	# Digital World machinery, and glowing data minerals. Generate once per
+	# shared material; MultiMesh instances reuse the same textures.
 	var coarse := FastNoiseLite.new()
 	coarse.seed = 2391 + pattern * 31
-	coarse.frequency = 0.038
+	coarse.frequency = 0.025
 	coarse.fractal_type = FastNoiseLite.FRACTAL_FBM
-	coarse.fractal_octaves = 4
+	coarse.fractal_octaves = 5
 	var fine := FastNoiseLite.new()
 	fine.seed = 8731 + pattern * 97
-	fine.frequency = 0.19
+	fine.frequency = 0.17
 	fine.fractal_type = FastNoiseLite.FRACTAL_FBM
 	var image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
 	var heights := PackedFloat32Array()
 	heights.resize(128 * 128)
 	for y in 128:
 		for x in 128:
-			var large: float = coarse.get_noise_2d(float(x), float(y))
-			var grain: float = fine.get_noise_2d(float(x), float(y))
-			var v: float = 0.82 + large * 0.25 + grain * 0.13
+			var fx := float(x)
+			var fy := float(y)
+			var large: float = coarse.get_noise_2d(fx, fy)
+			var grain: float = fine.get_noise_2d(fx, fy)
+			var v: float = 0.82 + large * 0.24 + grain * 0.10
+			var tint := Vector3(1.0, 1.0, 1.0)
 			match pattern:
-				1: # Bark, stone and organic fibers.
-					var fiber: float = sin(float(x) * 0.63 + large * 9.0)
-					v += fiber * 0.085
+				0: # Natural ground and leaf surfaces, mottled and vein-like.
+					var veins: float = sin(fx * 0.22 + large * 13.0) * sin(fy * 0.14 + grain * 8.0)
+					v += veins * 0.08
+					tint = Vector3(0.94 + large * 0.12, 1.0 + grain * 0.1, 0.91 + large * 0.08)
+				1: # Deep grooved bark and fractured stone, not smooth plastic.
+					var groove: float = sin(fx * 0.39 + large * 12.0)
+					v += groove * 0.14
 					if grain > 0.28:
-						v *= 0.78
-				2: # Aged panelwork with seams, scratches and oxidized joints.
-					var seam: bool = y % 32 < 2 or (x % 38 < 2 and (int(y / 32) % 2 == 0))
+						v *= 0.74
+					tint = Vector3(1.02, 0.96 + grain * 0.08, 0.90)
+				2: # Ruined terminals: staggered metal plates, rivets and wear.
+					var row: int = int(fy / 32.0)
+					var offset: int = 17 if row % 2 == 1 else 0
+					var seam: bool = y % 32 < 2 or (x + offset) % 43 < 2
 					if seam:
-						v *= 0.43
-					if absf(grain) > 0.35:
-						v *= 0.82
-				3: # Digital mineral with luminous traces.
-					if x % 24 < 2 or y % 28 < 2:
-						v *= 1.24
-					v += maxf(0.0, grain) * 0.2
-			v = clampf(v, 0.15, 1.0)
+						v *= 0.35
+					if (x + offset) % 43 < 5 and y % 32 < 6:
+						v *= 0.56
+					var scratch: float = sin(fx * 1.9 + grain * 5.0)
+					v -= maxf(0.0, scratch - 0.88) * 0.42
+					tint = Vector3(0.91 + large * 0.1, 0.96, 1.04 + grain * 0.08)
+				3: # Data crystals: glowing circuitry through dark mineral.
+					var trace_x: bool = (x + int(large * 9.0)) % 29 < 2
+					var trace_y: bool = (y + int(grain * 8.0)) % 37 < 2
+					if trace_x or trace_y:
+						v = minf(1.0, v + 0.28)
+					v += maxf(0.0, grain) * 0.15
+					tint = Vector3(0.82, 1.04 + large * 0.12, 1.12)
+			v = clampf(v, 0.12, 1.0)
 			heights[y * 128 + x] = v
-			image.set_pixel(x, y, Color(v, v * (0.98 + grain * 0.025), v * (0.96 + large * 0.04), 1.0))
+			image.set_pixel(x, y, Color(clampf(v * tint.x, 0.0, 1.0), clampf(v * tint.y, 0.0, 1.0), clampf(v * tint.z, 0.0, 1.0), 1.0))
 	var bump := Image.create(128, 128, false, Image.FORMAT_RGBA8)
 	for y in 128:
 		for x in 128:
@@ -70,18 +87,18 @@ func _material(color: Color, pattern: int = 0, glow: bool = false) -> StandardMa
 			var right: float = heights[y * 128 + ((x + 1) % 128)]
 			var up: float = heights[((y + 127) % 128) * 128 + x]
 			var down: float = heights[((y + 1) % 128) * 128 + x]
-			var normal := Vector3((left - right) * 2.2, (up - down) * 2.2, 1.0).normalized()
+			var normal := Vector3((left - right) * 2.5, (up - down) * 2.5, 1.0).normalized()
 			bump.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
 	m.albedo_texture = ImageTexture.create_from_image(image)
 	m.normal_enabled = true
 	m.normal_texture = ImageTexture.create_from_image(bump)
-	m.normal_scale = 0.75
+	m.normal_scale = 1.05
 	m.uv1_triplanar = true
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if glow:
 		m.emission_enabled = true
 		m.emission = color
-		m.emission_energy_multiplier = 1.65
+		m.emission_energy_multiplier = 1.9
 	materials[key] = m
 	return m
 

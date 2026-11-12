@@ -39,16 +39,37 @@ var door = null
 var cam: Camera2D
 var hud
 var font: Font
+var terrain_view: SubViewport
+var terrain_world: Node3D
 
 func _ready() -> void:
 	randomize()
 	font = ThemeDB.fallback_font
+	_setup_terrain()
 	cam = Camera2D.new()
 	add_child(cam)
 	hud = load("res://scripts/hud.gd").new()
 	hud.g = self
 	add_child(hud)
 	start_run()
+
+func _setup_terrain() -> void:
+	terrain_view = SubViewport.new()
+	terrain_view.disable_3d = false
+	terrain_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	terrain_view.size = Vector2i(1280, 720)
+	add_child(terrain_view)
+	terrain_world = preload("res://scripts/expedition_terrain.gd").new()
+	terrain_view.add_child(terrain_world)
+
+func _sync_terrain() -> void:
+	if R.mode != "night":
+		return
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var target := Vector2i(maxi(1, int(viewport_size.x)), maxi(1, int(viewport_size.y)))
+	if terrain_view.size != target:
+		terrain_view.size = target
+	terrain_world.follow(cam.get_screen_center_position(), viewport_size.y)
 
 func nm() -> String:
 	return Data.ROSTER[P.line].stages[P.stage]
@@ -125,6 +146,7 @@ func start_night() -> void:
 	R.fog = PackedByteArray()
 	R.fog.resize(GRID * GRID)
 	gen_map()
+	terrain_world.rebuild(bio, obs, areas)
 	say("Night %d begins. Stay inside the safe zone." % R.night)
 
 func make_chain() -> Array:
@@ -779,6 +801,7 @@ func kill_mob(m: Dictionary) -> void:
 func _physics_process(dt: float) -> void:
 	if R.over: return
 	update(dt)
+	_sync_terrain()
 	queue_redraw()
 	hud.refresh()
 
@@ -1115,12 +1138,9 @@ func _draw() -> void:
 	var vp := get_viewport_rect().size
 	var view := Rect2(P.pos - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
 	if R.mode == "night":
-		for gy in range(maxi(0, int(view.position.y / 100.0)), mini(GRID, int(view.end.y / 100.0) + 1)):
-			for gx in range(maxi(0, int(view.position.x / 100.0)), mini(GRID, int(view.end.x / 100.0) + 1)):
-				var bi: int = bio[gy * GRID + gx]
-				var h: int = ((gx * 73856093) ^ (gy * 19349663)) & 0x7fffffff
-				draw_rect(Rect2(gx * 100, gy * 100, 101, 101), BIO_A[bi] if h % 5 < 3 else BIO_B[bi])
-				if h % 4 == 0: draw_rect(Rect2(gx * 100 + h % 80 + 10, gy * 100 + (h >> 8) % 80 + 10, 3, 8), Color(BIO_EDGE[bi], 0.35))
+		# The 3D terrain is rendered at the same gameplay world coordinates.
+		var center: Vector2 = cam.get_screen_center_position()
+		draw_texture_rect(terrain_view.get_texture(), Rect2(center - vp * 0.5, vp), false)
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		for a in areas: label(a.pos, a.n, 15, Color(1, 1, 1, 0.35))
@@ -1134,10 +1154,11 @@ func _draw() -> void:
 	if door != null:
 		draw_rect(Rect2(door.pos.x - door.w, door.pos.y - 40, door.w * 2, 60), Color("#d9b45a"))
 		label(door.pos, "GIANT DOORS", 12, Color.BLACK)
-	for o in obs:
-		if not view.has_point(o.pos): continue
-		draw_circle(o.pos, o.r, BIO_OBS[o.b])
-		draw_arc(o.pos, o.r, 0.0, TAU, 20, BIO_EDGE[o.b], 2.0)
+	if R.mode != "night":
+		for o in obs:
+			if not view.has_point(o.pos): continue
+			draw_circle(o.pos, o.r, BIO_OBS[o.b])
+			draw_arc(o.pos, o.r, 0.0, TAU, 20, BIO_EDGE[o.b], 2.0)
 	for c in camps:
 		draw_circle(c.pos, 50.0, Color(0.5, 0.5, 0.5, 0.4) if c.used else Color(0.24, 0.86, 0.52, 0.4))
 		label(c.pos, "used camp" if c.used else "heal camp", 11)

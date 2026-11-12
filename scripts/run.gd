@@ -41,6 +41,8 @@ var hud
 var font: Font
 var terrain_view: SubViewport
 var terrain_camera: Camera3D
+var terrain_root: Node3D
+var terrain_props: Node3D
 const TERRAIN_SCALE := 2400.0 / WORLD
 
 func _ready() -> void:
@@ -65,9 +67,13 @@ func _setup_terrain() -> void:
 	add_child(terrain_view)
 	var terrain_scene: PackedScene = preload("res://scenes/terrain_preview.tscn")
 	var terrain: Node3D = terrain_scene.instantiate() as Node3D
+	terrain.set("embedded_mode", true)
+	terrain_root = terrain
 	terrain.set_process(false)
 	terrain.set_process_unhandled_input(false)
 	terrain_view.add_child(terrain)
+	terrain_props = Node3D.new()
+	terrain_root.add_child(terrain_props)
 	terrain_camera = terrain.get("camera") as Camera3D
 	if terrain_camera == null:
 		push_error("3D terrain camera was not created.")
@@ -81,6 +87,58 @@ func _setup_terrain() -> void:
 	for child: Node in terrain.get_children():
 		if child is CanvasLayer:
 			child.hide()
+
+func _rebuild_terrain_props() -> void:
+	if terrain_props == null:
+		return
+	for child: Node in terrain_props.get_children():
+		terrain_props.remove_child(child)
+		child.queue_free()
+	if R.mode != "night":
+		return
+	# Render the actual gameplay obstacles in 3D at their collision coordinates.
+	# The old 2D placeholder circles are no longer drawn.
+	var rock_mesh := CylinderMesh.new()
+	rock_mesh.top_radius = 0.65
+	rock_mesh.bottom_radius = 1.0
+	rock_mesh.height = 1.0
+	rock_mesh.radial_segments = 7
+	var rocks := MultiMesh.new()
+	rocks.transform_format = MultiMesh.TRANSFORM_3D
+	rocks.mesh = rock_mesh
+	rocks.instance_count = obs.size()
+	for i in obs.size():
+		var o: Dictionary = obs[i]
+		var world_pos := Vector3((o.pos.x - WORLD * 0.5) * TERRAIN_SCALE, 0, (o.pos.y - WORLD * 0.5) * TERRAIN_SCALE)
+		var radius: float = o.r * TERRAIN_SCALE
+		rocks.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(radius, radius * 1.6, radius)), world_pos + Vector3(0, radius * 0.8, 0)))
+	var rock_instances := MultiMeshInstance3D.new()
+	rock_instances.multimesh = rocks
+	var rock_mat := StandardMaterial3D.new()
+	rock_mat.albedo_color = Color("#716c67")
+	rock_instances.material_override = rock_mat
+	terrain_props.add_child(rock_instances)
+	# Camps occupy the same world positions as their gameplay interactions.
+	var camp_mesh := CylinderMesh.new()
+	camp_mesh.top_radius = 3.5
+	camp_mesh.bottom_radius = 5.0
+	camp_mesh.height = 2.0
+	var markers := MultiMesh.new()
+	markers.transform_format = MultiMesh.TRANSFORM_3D
+	markers.mesh = camp_mesh
+	markers.instance_count = camps.size()
+	for i in camps.size():
+		var c: Dictionary = camps[i]
+		var p := Vector3((c.pos.x - WORLD * 0.5) * TERRAIN_SCALE, 1.0, (c.pos.y - WORLD * 0.5) * TERRAIN_SCALE)
+		markers.set_instance_transform(i, Transform3D(Basis(), p))
+	var camp_instances := MultiMeshInstance3D.new()
+	camp_instances.multimesh = markers
+	var camp_mat := StandardMaterial3D.new()
+	camp_mat.albedo_color = Color("#49b79c")
+	camp_mat.emission_enabled = true
+	camp_mat.emission = Color("#1c7363")
+	camp_instances.material_override = camp_mat
+	terrain_props.add_child(camp_instances)
 
 func _sync_terrain() -> void:
 	if terrain_view == null or terrain_camera == null:
@@ -168,6 +226,7 @@ func start_night() -> void:
 	R.fog = PackedByteArray()
 	R.fog.resize(GRID * GRID)
 	gen_map()
+	_rebuild_terrain_props()
 	say("Night %d begins. Stay inside the safe zone." % R.night)
 
 func make_chain() -> Array:
@@ -327,6 +386,7 @@ func gen_map() -> void:
 func safe_room() -> void:
 	R.mode = "safe"
 	clear_lists()
+	_rebuild_terrain_props()
 	set_bounds(Rect2(0, 0, 900, 560))
 	P.hp = P.mhp
 	P.pos = Vector2(450, 500)
@@ -336,6 +396,7 @@ func safe_room() -> void:
 func final_room() -> void:
 	R.mode = "final"
 	clear_lists()
+	_rebuild_terrain_props()
 	set_bounds(Rect2(0, 0, 900, 620))
 	P.pos = Vector2(450, 560)
 	spawn_boss("angemon", Vector2(450, 200))
@@ -1153,24 +1214,14 @@ func _draw() -> void:
 			draw_texture_rect(terrain_view.get_texture(), Rect2(screen_center - vp * 0.5, vp), false)
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
-		for a in areas: label(a.pos, a.n, 15, Color(1, 1, 1, 0.35))
-		for s in spots:
-			if s.k == "camp" and s.pos.distance_to(P.pos) < 600.0:
-				draw_circle(s.pos, 90.0, Color(0.48, 0.12, 0.17, 0.2))
-				draw_circle(s.pos, 5.0, Color("#ff9a3d"))
+		# Old randomly assigned 2D biome labels are hidden until biome data is aligned.
 	else:
 		draw_rect(B, Color("#14101f"))
 	draw_rect(B, Color("#8a7cc0"), false, 3.0)
 	if door != null:
 		draw_rect(Rect2(door.pos.x - door.w, door.pos.y - 40, door.w * 2, 60), Color("#d9b45a"))
 		label(door.pos, "GIANT DOORS", 12, Color.BLACK)
-	for o in obs:
-		if not view.has_point(o.pos): continue
-		draw_circle(o.pos, o.r, BIO_OBS[o.b])
-		draw_arc(o.pos, o.r, 0.0, TAU, 20, BIO_EDGE[o.b], 2.0)
-	for c in camps:
-		draw_circle(c.pos, 50.0, Color(0.5, 0.5, 0.5, 0.4) if c.used else Color(0.24, 0.86, 0.52, 0.4))
-		label(c.pos, "used camp" if c.used else "heal camp", 11)
+	# Obstacles and camps are now 3D objects at their gameplay positions.
 	for c in chests:
 		if P.pos.distance_to(c.pos) < 240.0: draw_rect(Rect2(c.pos - Vector2(10, 8), Vector2(20, 16)), Color("#555555") if c.open else Color("#e3a93b"))
 	for d in drops:

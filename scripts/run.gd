@@ -48,6 +48,8 @@ var actor_player: MeshInstance3D
 var actor_boss: MeshInstance3D
 var actor_mobs: MultiMeshInstance3D
 var actor_shots: MultiMeshInstance3D
+var actor_chests: MultiMeshInstance3D
+var actor_drops: MultiMeshInstance3D
 const TERRAIN_SCALE := 2400.0 / WORLD
 
 func _ready() -> void:
@@ -135,6 +137,24 @@ func _build_3d_actors() -> void:
 	actor_shots.multimesh = shot_mesh
 	actor_shots.material_override = _actor_material(Color("#ffdc72"))
 	terrain_actors.add_child(actor_shots)
+	actor_chests = MultiMeshInstance3D.new()
+	var chest_mesh := MultiMesh.new()
+	chest_mesh.transform_format = MultiMesh.TRANSFORM_3D
+	var chest_shape := BoxMesh.new()
+	chest_shape.size = Vector3.ONE
+	chest_mesh.mesh = chest_shape
+	chest_mesh.instance_count = 0
+	actor_chests.multimesh = chest_mesh
+	actor_chests.material_override = _actor_material(Color("#dba746"))
+	terrain_actors.add_child(actor_chests)
+	actor_drops = MultiMeshInstance3D.new()
+	var drop_mesh := MultiMesh.new()
+	drop_mesh.transform_format = MultiMesh.TRANSFORM_3D
+	drop_mesh.mesh = body_mesh
+	drop_mesh.use_colors = true
+	drop_mesh.instance_count = 0
+	actor_drops.multimesh = drop_mesh
+	terrain_actors.add_child(actor_drops)
 
 func _sync_3d_actors() -> void:
 	if terrain_actors == null:
@@ -166,6 +186,23 @@ func _sync_3d_actors() -> void:
 		var shot: Dictionary = shots[i]
 		var radius: float = float(shot.r) * TERRAIN_SCALE
 		sm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), _world3(shot.pos, radius)))
+
+	var cm: MultiMesh = actor_chests.multimesh
+	cm.instance_count = chests.size()
+	for i in chests.size():
+		var chest: Dictionary = chests[i]
+		var size: float = 12.0 * TERRAIN_SCALE
+		var transform := Transform3D(Basis().scaled(Vector3(size, size * 0.7, size)), _world3(chest.pos, size * 0.35))
+		if chest.open:
+			transform = Transform3D(Basis().scaled(Vector3.ZERO), _world3(chest.pos))
+		cm.set_instance_transform(i, transform)
+	var dm: MultiMesh = actor_drops.multimesh
+	dm.instance_count = drops.size()
+	for i in drops.size():
+		var drop: Dictionary = drops[i]
+		var radius: float = 7.0 * TERRAIN_SCALE
+		dm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), _world3(drop.pos, radius)))
+		dm.set_instance_color(i, Color("#42ddff") if drop.k == "items" else Color("#ff8ad8"))
 
 func _rebuild_terrain_props() -> void:
 	if terrain_props == null:

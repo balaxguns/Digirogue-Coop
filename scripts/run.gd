@@ -225,24 +225,20 @@ func obs_ok(p: Vector2) -> bool:
 	return p.distance_to(R.fc) > 600.0 and p.distance_to(R.cpos) < R.cr + 100.0 and p.x > 40 and p.y > 40 and p.x < WORLD - 40 and p.y < WORLD - 40
 
 func gen_obs() -> void:
-	# Solid scenery uses the SAME collision grid as boulders and other obstacles.
-	# Keep clearings, miniboss arenas, and spawn/patrol points traversable.
+	# Dense scenery and collision must use the exact same deterministic positions.
+	# Do not create a separate random collision scatter: every solid has a model.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 614827
 	for gy in 45:
 		for gx in 45:
-			if rng.randf() > 0.46:
-				continue
 			var p := Vector2((float(gx) + 0.2 + rng.randf() * 0.6) * 200.0, (float(gy) + 0.2 + rng.randf() * 0.6) * 200.0)
 			if not obs_ok(p):
 				continue
-			var clear := true
-			for nearby in near_obs(p):
-				if p.distance_to(nearby.pos) < float(nearby.r) + 60.0:
-					clear = false
-					break
-			if clear:
-				add_obs(p, randf_range(19.0, 30.0), true)
+			var b: int = bio_at(p)
+			# Only major silhouettes are solid. Undergrowth and small debris are not.
+			var seed: int = gy * 1009 + gx * 83 + b * 31
+			if seed % 3 == 0:
+				add_obs(p + Vector2(45, -40), 24.0, true)
 	for i in 90:
 		var p: Vector2 = R.cpos + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * R.cr
 		var dir := randf() * TAU

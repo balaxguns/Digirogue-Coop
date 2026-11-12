@@ -1,7 +1,7 @@
 extends Node2D
 ## The expedition: map generation, nights, corruption, combat, bosses, rewards.
-const WORLD := 9000.0
-const GRID := 90
+const WORLD := 6000.0
+const GRID := 60
 const BOSS_PAT := {"reppamon": ["razor", "roll", "razor"], "sangloupmon": ["blades", "vdash", "fang"], "angemon": ["fist", "shackles", "beam", "fist"], "devimon": ["dclaw", "wing", "glare", "touch"]}
 const BOSS_DMG := 2.0
 const BOSS_SCALE := {"sangloupmon": 0.88}
@@ -39,249 +39,16 @@ var door = null
 var cam: Camera2D
 var hud
 var font: Font
-var terrain_view: SubViewport
-var terrain_camera: Camera3D
-var terrain_root: Node3D
-var terrain_props: Node3D
-var terrain_actors: Node3D
-var actor_player: Sprite3D
-var actor_boss: Sprite3D
-var actor_mobs: Node3D
-var mob_sprites: Array[Sprite3D] = []
-var actor_shots: MultiMeshInstance3D
-var actor_chests: MultiMeshInstance3D
-var actor_drops: MultiMeshInstance3D
-const TERRAIN_SCALE := 2400.0 / WORLD
 
 func _ready() -> void:
 	randomize()
 	font = ThemeDB.fallback_font
-	_setup_terrain()
 	cam = Camera2D.new()
 	add_child(cam)
 	hud = load("res://scripts/hud.gd").new()
 	hud.g = self
 	add_child(hud)
 	start_run()
-
-func _setup_terrain() -> void:
-	# The playable expedition remains Node2D for now. Render the new 3D terrain
-	# underneath the existing combat sprites through a transparent-free viewport.
-	terrain_view = SubViewport.new()
-	terrain_view.disable_3d = false
-	terrain_view.transparent_bg = false
-	terrain_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	terrain_view.size = Vector2i(1280, 720)
-	add_child(terrain_view)
-	var terrain_scene: PackedScene = preload("res://scenes/terrain_preview.tscn")
-	var terrain: Node3D = terrain_scene.instantiate() as Node3D
-	terrain.set("embedded_mode", true)
-	terrain_root = terrain
-	terrain.set_process(false)
-	terrain.set_process_unhandled_input(false)
-	terrain_view.add_child(terrain)
-	terrain_props = Node3D.new()
-	terrain_root.add_child(terrain_props)
-	terrain_actors = Node3D.new()
-	terrain_root.add_child(terrain_actors)
-	_build_3d_actors()
-	terrain_camera = terrain.get("camera") as Camera3D
-	if terrain_camera == null:
-		push_error("3D terrain camera was not created.")
-		return
-	terrain_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	terrain_camera.rotation = Vector3(-PI / 2.0, 0, 0)
-	terrain_camera.position = Vector3(0, 450, 0)
-	terrain_camera.size = 720.0 * TERRAIN_SCALE
-	terrain_camera.current = true
-	# Preview's screen-space legend is not part of the live expedition.
-	for child: Node in terrain.get_children():
-		if child is CanvasLayer:
-			child.hide()
-
-func _world3(p: Vector2, height: float = 0.0) -> Vector3:
-	return Vector3((p.x - WORLD * 0.5) * TERRAIN_SCALE, height, (p.y - WORLD * 0.5) * TERRAIN_SCALE)
-
-func _actor_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.72
-	return mat
-
-func _actor_sprite_texture() -> Texture2D:
-	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-	img.fill(Color.TRANSPARENT)
-	for y in 64:
-		for x in 64:
-			var d := Vector2(x - 31.5, y - 31.5).length()
-			if d <= 29.0:
-				img.set_pixel(x, y, Color.WHITE if d < 25.0 else Color("#263244"))
-	return ImageTexture.create_from_image(img)
-
-func _new_actor_sprite(tint: Color) -> Sprite3D:
-	var sprite := Sprite3D.new()
-	sprite.texture = _actor_sprite_texture()
-	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sprite.shaded = false
-	sprite.no_depth_test = true
-	sprite.modulate = tint
-	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	terrain_actors.add_child(sprite)
-	return sprite
-
-func _build_3d_actors() -> void:
-	# Flat 2D sprites live INSIDE the 3D scene and share its camera and coordinates.
-	actor_player = _new_actor_sprite(Color("#66dfff"))
-	actor_boss = _new_actor_sprite(Color("#ff685f"))
-	actor_mobs = Node3D.new()
-	terrain_actors.add_child(actor_mobs)
-	var body_mesh := SphereMesh.new()
-	body_mesh.radius = 1.0
-	body_mesh.height = 2.0
-	body_mesh.radial_segments = 12
-	body_mesh.rings = 6
-	actor_shots = MultiMeshInstance3D.new()
-	var shot_mesh := MultiMesh.new()
-	shot_mesh.transform_format = MultiMesh.TRANSFORM_3D
-	shot_mesh.mesh = body_mesh
-	shot_mesh.instance_count = 0
-	actor_shots.multimesh = shot_mesh
-	actor_shots.material_override = _actor_material(Color("#ffdc72"))
-	terrain_actors.add_child(actor_shots)
-	actor_chests = MultiMeshInstance3D.new()
-	var chest_mesh := MultiMesh.new()
-	chest_mesh.transform_format = MultiMesh.TRANSFORM_3D
-	var chest_shape := BoxMesh.new()
-	chest_shape.size = Vector3.ONE
-	chest_mesh.mesh = chest_shape
-	chest_mesh.instance_count = 0
-	actor_chests.multimesh = chest_mesh
-	actor_chests.material_override = _actor_material(Color("#dba746"))
-	terrain_actors.add_child(actor_chests)
-	actor_drops = MultiMeshInstance3D.new()
-	var drop_mesh := MultiMesh.new()
-	drop_mesh.transform_format = MultiMesh.TRANSFORM_3D
-	drop_mesh.mesh = body_mesh
-	drop_mesh.use_colors = true
-	drop_mesh.instance_count = 0
-	actor_drops.multimesh = drop_mesh
-	terrain_actors.add_child(actor_drops)
-
-func _sync_3d_actors() -> void:
-	if terrain_actors == null:
-		return
-	var active: bool = R.mode == "night"
-	terrain_actors.visible = active
-	if not active:
-		return
-	var player_radius: float = (P.r + P.stage * 3.0) * TERRAIN_SCALE
-	actor_player.pixel_size = maxf(0.15, player_radius * 2.0 / 64.0)
-	actor_player.position = _world3(P.pos, maxf(3.0, player_radius))
-	actor_player.visible = true
-	actor_boss.visible = boss != null
-	if boss != null:
-		var boss_radius: float = float(boss.r) * TERRAIN_SCALE
-		actor_boss.pixel_size = boss_radius * 2.0 / 64.0
-		actor_boss.position = _world3(boss.pos, boss_radius)
-	while mob_sprites.size() < mobs.size():
-		var sprite := _new_actor_sprite(Color("#b48de3"))
-		mob_sprites.append(sprite)
-	for i in mob_sprites.size():
-		var sprite: Sprite3D = mob_sprites[i]
-		sprite.visible = i < mobs.size()
-		if i >= mobs.size():
-			continue
-		var enemy: Dictionary = mobs[i]
-		var radius: float = float(enemy.r) * TERRAIN_SCALE
-		sprite.pixel_size = radius * 2.0 / 64.0
-		sprite.position = _world3(enemy.pos, radius + maxf(0.0, float(enemy.up)) * TERRAIN_SCALE)
-		sprite.modulate = Color("#e6a968") if enemy.get("mini", false) else Color("#b48de3")
-	var sm: MultiMesh = actor_shots.multimesh
-	sm.instance_count = shots.size()
-	for i in shots.size():
-		var shot: Dictionary = shots[i]
-		var radius: float = float(shot.r) * TERRAIN_SCALE
-		sm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), _world3(shot.pos, radius)))
-
-	var cm: MultiMesh = actor_chests.multimesh
-	cm.instance_count = chests.size()
-	for i in chests.size():
-		var chest: Dictionary = chests[i]
-		var size: float = 12.0 * TERRAIN_SCALE
-		var transform := Transform3D(Basis().scaled(Vector3(size, size * 0.7, size)), _world3(chest.pos, size * 0.35))
-		if chest.open:
-			transform = Transform3D(Basis().scaled(Vector3.ZERO), _world3(chest.pos))
-		cm.set_instance_transform(i, transform)
-	var dm: MultiMesh = actor_drops.multimesh
-	dm.instance_count = drops.size()
-	for i in drops.size():
-		var drop: Dictionary = drops[i]
-		var radius: float = 7.0 * TERRAIN_SCALE
-		dm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), _world3(drop.pos, radius)))
-		dm.set_instance_color(i, Color("#42ddff") if drop.k == "items" else Color("#ff8ad8"))
-
-func _rebuild_terrain_props() -> void:
-	if terrain_props == null:
-		return
-	for child: Node in terrain_props.get_children():
-		terrain_props.remove_child(child)
-		child.queue_free()
-	if R.mode != "night":
-		return
-	# Render the actual gameplay obstacles in 3D at their collision coordinates.
-	# The old 2D placeholder circles are no longer drawn.
-	var rock_mesh := CylinderMesh.new()
-	rock_mesh.top_radius = 0.65
-	rock_mesh.bottom_radius = 1.0
-	rock_mesh.height = 1.0
-	rock_mesh.radial_segments = 7
-	var rocks := MultiMesh.new()
-	rocks.transform_format = MultiMesh.TRANSFORM_3D
-	rocks.mesh = rock_mesh
-	rocks.instance_count = obs.size()
-	for i in obs.size():
-		var o: Dictionary = obs[i]
-		var world_pos := Vector3((o.pos.x - WORLD * 0.5) * TERRAIN_SCALE, 0, (o.pos.y - WORLD * 0.5) * TERRAIN_SCALE)
-		var radius: float = o.r * TERRAIN_SCALE
-		rocks.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(radius, radius * 1.6, radius)), world_pos + Vector3(0, radius * 0.8, 0)))
-	var rock_instances := MultiMeshInstance3D.new()
-	rock_instances.multimesh = rocks
-	var rock_mat := StandardMaterial3D.new()
-	rock_mat.albedo_color = Color("#716c67")
-	rock_instances.material_override = rock_mat
-	terrain_props.add_child(rock_instances)
-	# Camps occupy the same world positions as their gameplay interactions.
-	var camp_mesh := CylinderMesh.new()
-	camp_mesh.top_radius = 3.5
-	camp_mesh.bottom_radius = 5.0
-	camp_mesh.height = 2.0
-	var markers := MultiMesh.new()
-	markers.transform_format = MultiMesh.TRANSFORM_3D
-	markers.mesh = camp_mesh
-	markers.instance_count = camps.size()
-	for i in camps.size():
-		var c: Dictionary = camps[i]
-		var p := Vector3((c.pos.x - WORLD * 0.5) * TERRAIN_SCALE, 1.0, (c.pos.y - WORLD * 0.5) * TERRAIN_SCALE)
-		markers.set_instance_transform(i, Transform3D(Basis(), p))
-	var camp_instances := MultiMeshInstance3D.new()
-	camp_instances.multimesh = markers
-	var camp_mat := StandardMaterial3D.new()
-	camp_mat.albedo_color = Color("#49b79c")
-	camp_mat.emission_enabled = true
-	camp_mat.emission = Color("#1c7363")
-	camp_instances.material_override = camp_mat
-	terrain_props.add_child(camp_instances)
-
-func _sync_terrain() -> void:
-	if terrain_view == null or terrain_camera == null:
-		return
-	var vp := get_viewport_rect().size
-	var target := Vector2i(maxi(1, int(vp.x)), maxi(1, int(vp.y)))
-	if terrain_view.size != target:
-		terrain_view.size = target
-	terrain_camera.size = vp.y * TERRAIN_SCALE
-	var center: Vector2 = cam.get_screen_center_position()
-	terrain_camera.position = Vector3((center.x - WORLD * 0.5) * TERRAIN_SCALE, 450.0, (center.y - WORLD * 0.5) * TERRAIN_SCALE)
 
 func nm() -> String:
 	return Data.ROSTER[P.line].stages[P.stage]
@@ -358,12 +125,11 @@ func start_night() -> void:
 	R.fog = PackedByteArray()
 	R.fog.resize(GRID * GRID)
 	gen_map()
-	_rebuild_terrain_props()
 	say("Night %d begins. Stay inside the safe zone." % R.night)
 
 func make_chain() -> Array:
-	var c := [{"pos": Vector2(WORLD / 2.0, WORLD / 2.0), "r": 4800.0}]
-	for r in [2300.0, 700.0]:
+	var c := [{"pos": Vector2(WORLD / 2.0, WORLD / 2.0), "r": 3300.0}]
+	for r in [1600.0, 520.0]:
 		var p: Dictionary = c[c.size() - 1]
 		var q: Vector2 = p.pos + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * (p.r - r)
 		c.append({"pos": Vector2(clampf(q.x, 400.0, WORLD - 400.0), clampf(q.y, 400.0, WORLD - 400.0)), "r": r})
@@ -518,7 +284,6 @@ func gen_map() -> void:
 func safe_room() -> void:
 	R.mode = "safe"
 	clear_lists()
-	_rebuild_terrain_props()
 	set_bounds(Rect2(0, 0, 900, 560))
 	P.hp = P.mhp
 	P.pos = Vector2(450, 500)
@@ -528,7 +293,6 @@ func safe_room() -> void:
 func final_room() -> void:
 	R.mode = "final"
 	clear_lists()
-	_rebuild_terrain_props()
 	set_bounds(Rect2(0, 0, 900, 620))
 	P.pos = Vector2(450, 560)
 	spawn_boss("angemon", Vector2(450, 200))
@@ -1003,8 +767,6 @@ func kill_mob(m: Dictionary) -> void:
 func _physics_process(dt: float) -> void:
 	if R.over: return
 	update(dt)
-	_sync_terrain()
-	_sync_3d_actors()
 	queue_redraw()
 	hud.refresh()
 
@@ -1339,40 +1101,34 @@ func hpbar(p: Vector2, w: float, v: float) -> void:
 func _draw() -> void:
 	if P.is_empty() or R.is_empty(): return
 	var vp := get_viewport_rect().size
-	var screen_center: Vector2 = cam.get_screen_center_position()
-	var view := Rect2(screen_center - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
+	var view := Rect2(P.pos - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
 	if R.mode == "night":
-		# The 3D orthographic terrain replaces the old flat colored biome tiles.
-		if terrain_view != null:
-			draw_texture_rect(terrain_view.get_texture(), Rect2(screen_center - vp * 0.5, vp), false)
+		for gy in range(maxi(0, int(view.position.y / 100.0)), mini(GRID, int(view.end.y / 100.0) + 1)):
+			for gx in range(maxi(0, int(view.position.x / 100.0)), mini(GRID, int(view.end.x / 100.0) + 1)):
+				var bi: int = bio[gy * GRID + gx]
+				var h: int = ((gx * 73856093) ^ (gy * 19349663)) & 0x7fffffff
+				draw_rect(Rect2(gx * 100, gy * 100, 101, 101), BIO_A[bi] if h % 5 < 3 else BIO_B[bi])
+				if h % 4 == 0: draw_rect(Rect2(gx * 100 + h % 80 + 10, gy * 100 + (h >> 8) % 80 + 10, 3, 8), Color(BIO_EDGE[bi], 0.35))
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
-		# Characters, enemies, projectiles, camps, and obstacles now share
-		# one 3D coordinate system. Render ability telegraphs and hit effects
-		# on top; these are gameplay indicators, not a second terrain layer.
-		Bosses.draw(self)
-		Kit.draw(self)
-		for h in shots:
-			draw_circle(h.pos, h.r, h.get("col", tcol(P.type) if h.from == "p" else Color("#ff5c8a")))
-		for f in fx:
-			if f.has("cone"):
-				var effect_color: Color = f.col
-				draw_colored_polygon(cone_poly(f), Color(effect_color, f.t * 2.0))
-			elif f.has("line_a"):
-				draw_line(f.line_a, f.line_b, Color(f.col, minf(1.0, f.t * 4.0)), f.get("w", 8.0))
-			elif f.has("ring"):
-				draw_arc(f.pos, f.ring * (1.0 - f.t / 0.35 * 0.4), 0.0, TAU, 32, Color(f.col, minf(1.0, f.t * 2.5)), 4.0)
-			else:
-				label(f.pos, f.txt, 14, f.col)
-		draw_arc(R.cpos, R.cr, 0.0, TAU, 128, Color("#c77dff"), 3.0)
-		return
+		for a in areas: label(a.pos, a.n, 15, Color(1, 1, 1, 0.35))
+		for s in spots:
+			if s.k == "camp" and s.pos.distance_to(P.pos) < 600.0:
+				draw_circle(s.pos, 90.0, Color(0.48, 0.12, 0.17, 0.2))
+				draw_circle(s.pos, 5.0, Color("#ff9a3d"))
 	else:
 		draw_rect(B, Color("#14101f"))
 	draw_rect(B, Color("#8a7cc0"), false, 3.0)
 	if door != null:
 		draw_rect(Rect2(door.pos.x - door.w, door.pos.y - 40, door.w * 2, 60), Color("#d9b45a"))
 		label(door.pos, "GIANT DOORS", 12, Color.BLACK)
-	# Obstacles and camps are now 3D objects at their gameplay positions.
+	for o in obs:
+		if not view.has_point(o.pos): continue
+		draw_circle(o.pos, o.r, BIO_OBS[o.b])
+		draw_arc(o.pos, o.r, 0.0, TAU, 20, BIO_EDGE[o.b], 2.0)
+	for c in camps:
+		draw_circle(c.pos, 50.0, Color(0.5, 0.5, 0.5, 0.4) if c.used else Color(0.24, 0.86, 0.52, 0.4))
+		label(c.pos, "used camp" if c.used else "heal camp", 11)
 	for c in chests:
 		if P.pos.distance_to(c.pos) < 240.0: draw_rect(Rect2(c.pos - Vector2(10, 8), Vector2(20, 16)), Color("#555555") if c.open else Color("#e3a93b"))
 	for d in drops:

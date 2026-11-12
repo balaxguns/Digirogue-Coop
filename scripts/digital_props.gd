@@ -135,7 +135,46 @@ func _place(b: int, point: Vector2, i: int) -> void:
 			_add("sphere", Color("#ff6734"), pos + Vector3(0, height * 1.25, 0), Vector3(height * 0.3, 1.2, height * 0.3), 0, 3, true)
 			_add("box", Color("#d95131"), pos + Vector3(6, 0.35, 0), Vector3(3.5, 0.7, 17), rot, 3, true)
 
-func populate(landmarks: Array, obstacles: Array) -> void:
+func _ground_detail(b: int, point: Vector2, seed: int) -> void:
+	var pos := _p(point)
+	var rot := float(seed % 628) * 0.01
+	var size := 0.8 + float(seed % 9) * 0.12
+	match b:
+		0:
+			_add("cone", Color("#31593b"), pos + Vector3(0, 2, 0), Vector3(5 * size, 4, 5 * size), rot, 1)
+			_add("sphere", Color("#456a46"), pos + Vector3(5, 1, 2), Vector3(7, 2, 5), rot, 1)
+			if seed % 5 == 0:
+				_add("sphere", Color("#5de5b0"), pos + Vector3(-5, 1, 3), Vector3(3, 2, 3), 0, 3, true)
+		1:
+			_add("sphere", Color("#e0f0f7"), pos + Vector3(0, 0.4, 0), Vector3(13 * size, 2, 10 * size), rot, 1)
+			if seed % 3 == 0:
+				_add("cone", Color("#a4d7ed"), pos + Vector3(4, 4, 2), Vector3(4, 8, 4), rot, 3)
+		2:
+			_add("cone", Color("#aa9155"), pos + Vector3(0, 2, 0), Vector3(4 * size, 4, 4 * size), rot, 1)
+			if seed % 4 == 0:
+				_add("sphere", Color("#92794d"), pos + Vector3(5, 1, 2), Vector3(7, 2, 5), rot, 1)
+			if seed % 11 == 0:
+				_add("cylinder", Color("#548260"), pos + Vector3(-5, 4, 0), Vector3(3, 8, 3), rot, 1)
+		3:
+			_add("box", Color("#46566a"), pos + Vector3(0, 0.3, 0), Vector3(9 * size, 0.6, 7 * size), rot, 3)
+			if seed % 4 == 0:
+				_add("box", Color("#847667"), pos + Vector3(5, 1, 1), Vector3(6, 2, 3), rot, 1)
+			if seed % 11 == 0:
+				_add("box", Color("#42c6e6"), pos + Vector3(-4, 2, 1), Vector3(4, 4, 1), rot, 3, true)
+		4:
+			_add("sphere", Color("#2b655e"), pos + Vector3(0, 0.2, 0), Vector3(13 * size, 0.4, 9 * size), rot, 1)
+			for j in 3:
+				_add("cone", Color("#69866c"), pos + Vector3(float(j - 1) * 3, 3, 0), Vector3(2, 6, 2), rot, 1)
+			if seed % 7 == 0:
+				_add("sphere", Color("#52bda6"), pos + Vector3(5, 0.4, 2), Vector3(6, 0.8, 5), rot, 3, true)
+		5:
+			_add("sphere", Color("#55464a"), pos + Vector3(0, 0.6, 0), Vector3(11 * size, 1.5, 8 * size), rot, 1)
+			if seed % 3 == 0:
+				_add("cone", Color("#302d34"), pos + Vector3(5, 3, 0), Vector3(5, 6, 5), rot, 1)
+			if seed % 9 == 0:
+				_add("box", Color("#e65c34"), pos + Vector3(-4, 0.3, 2), Vector3(7, 0.6, 2), rot, 3, true)
+
+func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -143,9 +182,9 @@ func populate(landmarks: Array, obstacles: Array) -> void:
 	lights.clear()
 	for area in landmarks:
 		var biome: int = int(area.b)
-		for i in 28:
+		for i in 125:
 			var angle: float = float(i) * 2.399963
-			var distance: float = 500.0 + float((i * 193 + biome * 61) % 800)
+			var distance: float = 380.0 + float((i * 193 + biome * 61) % 1200)
 			var point: Vector2 = area.pos + Vector2.from_angle(angle) * distance
 			point = point.clamp(Vector2(100, 100), Vector2(8900, 8900))
 			_place(biome, point, i)
@@ -161,6 +200,27 @@ func populate(landmarks: Array, obstacles: Array) -> void:
 		light.light_energy = 0.5
 		add_child(light)
 		lights.append(light)
+	# Dense, evenly distributed biome vegetation and ground clutter across the entire map.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 614827
+	for gy in 45:
+		for gx in 45:
+			var point := Vector2((float(gx) + 0.2 + rng.randf() * 0.6) * 200.0, (float(gy) + 0.2 + rng.randf() * 0.6) * 200.0)
+			var blocked := false
+			for area in landmarks:
+				if point.distance_squared_to(area.pos) < 320.0 * 320.0:
+					blocked = true
+					break
+			if blocked:
+				continue
+			var bx: int = clampi(int(point.x / 100.0), 0, 89)
+			var by: int = clampi(int(point.y / 100.0), 0, 89)
+			var biome: int = int(biomes[by * 90 + bx])
+			var seed: int = gy * 1009 + gx * 83 + biome * 31
+			_ground_detail(biome, point, seed)
+			if seed % 4 != 0:
+				var second := point + Vector2(rng.randf_range(-65, 65), rng.randf_range(-65, 65))
+				_ground_detail(biome, second, seed + 7)
 	# Rock obstacles use the gameplay's real collision positions, so no decorative
 	# boulder can imply an impassable wall where none exists.
 	for obstacle in obstacles:

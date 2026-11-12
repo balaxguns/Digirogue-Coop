@@ -123,7 +123,7 @@ func _new_actor_sprite(tint: Color) -> Sprite3D:
 	sprite.texture = _actor_sprite_texture()
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.shaded = false
-	sprite.no_depth_test = false
+	sprite.no_depth_test = true
 	sprite.modulate = tint
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	terrain_actors.add_child(sprite)
@@ -175,9 +175,9 @@ func _sync_3d_actors() -> void:
 	if not active:
 		return
 	var player_radius: float = (P.r + P.stage * 3.0) * TERRAIN_SCALE
-	actor_player.pixel_size = player_radius * 2.0 / 64.0
-	actor_player.position = _world3(P.pos, player_radius)
-	actor_player.visible = not P.downed
+	actor_player.pixel_size = maxf(0.15, player_radius * 2.0 / 64.0)
+	actor_player.position = _world3(P.pos, maxf(3.0, player_radius))
+	actor_player.visible = true
 	actor_boss.visible = boss != null
 	if boss != null:
 		var boss_radius: float = float(boss.r) * TERRAIN_SCALE
@@ -1348,7 +1348,22 @@ func _draw() -> void:
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		# Characters, enemies, projectiles, camps, and obstacles now share
-		# one 3D coordinate system. No duplicate 2D world entities.
+		# one 3D coordinate system. Render ability telegraphs and hit effects
+		# on top; these are gameplay indicators, not a second terrain layer.
+		Bosses.draw(self)
+		Kit.draw(self)
+		for h in shots:
+			draw_circle(h.pos, h.r, h.get("col", tcol(P.type) if h.from == "p" else Color("#ff5c8a")))
+		for f in fx:
+			if f.has("cone"):
+				var effect_color: Color = f.col
+				draw_colored_polygon(cone_poly(f), Color(effect_color, f.t * 2.0))
+			elif f.has("line_a"):
+				draw_line(f.line_a, f.line_b, Color(f.col, minf(1.0, f.t * 4.0)), f.get("w", 8.0))
+			elif f.has("ring"):
+				draw_arc(f.pos, f.ring * (1.0 - f.t / 0.35 * 0.4), 0.0, TAU, 32, Color(f.col, minf(1.0, f.t * 2.5)), 4.0)
+			else:
+				label(f.pos, f.txt, 14, f.col)
 		draw_arc(R.cpos, R.cr, 0.0, TAU, 128, Color("#c77dff"), 3.0)
 		return
 	else:

@@ -88,8 +88,18 @@ func _add(shape: String, color: Color, pos: Vector3, size: Vector3, rotation: fl
 	var key := "%s:%s:%d:%s" % [shape, color.to_html(), pattern, str(glow)]
 	if not groups.has(key):
 		groups[key] = {"shape": shape, "color": color, "pattern": pattern, "glow": glow, "items": []}
-	var basis := Basis(Vector3.UP, rotation).scaled(size)
-	groups[key].items.append(Transform3D(basis, pos))
+	# The camera stays directly overhead. Tilt the PROP geometry toward the
+	# camera in world space so its side silhouette is visible in X/Z projection.
+	# Ground decals stay flat; vertical trunks, trees, cliffs and houses lean
+	# visually without changing the gameplay or camera coordinates.
+	var vertical: bool = size.y > 2.5 and size.y > minf(size.x, size.z) * 0.55
+	var basis := Basis(Vector3.UP, rotation)
+	var visual_pos := pos
+	if vertical:
+		basis = Basis(Vector3.RIGHT, deg_to_rad(58.0)) * basis
+		visual_pos.z -= size.y * 0.34
+	basis = basis.scaled(size)
+	groups[key].items.append(Transform3D(basis, visual_pos))
 
 func _p(world: Vector2, y: float = 0.0) -> Vector3:
 	return Vector3((world.x - 4500.0) * S, y, (world.y - 4500.0) * S)
@@ -182,13 +192,6 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 	lights.clear()
 	for area in landmarks:
 		var biome: int = int(area.b)
-		for i in 125:
-			var angle: float = float(i) * 2.399963
-			var distance: float = 380.0 + float((i * 193 + biome * 61) % 1200)
-			var point: Vector2 = area.pos + Vector2.from_angle(angle) * distance
-			point = point.clamp(Vector2(100, 100), Vector2(8900, 8900))
-			# Tall landmarks remain visual; their bases are outside reserved arenas.
-			_place(biome, point, i)
 		# The biome's primary digital landmark: a pulsing data obelisk.
 		var anchor: Vector2 = area.pos + Vector2(0, -260)
 		var center := _p(anchor)
@@ -219,9 +222,6 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 			var biome: int = int(biomes[by * 90 + bx])
 			var seed: int = gy * 1009 + gx * 83 + biome * 31
 			_ground_detail(biome, point, seed)
-			# Larger canopy, glacial, ruin and volcanic silhouettes between landmarks.
-			if seed % 3 == 0:
-				_place(biome, point + Vector2(45, -40), seed)
 			if seed % 4 != 0:
 				var second := point + Vector2(rng.randf_range(-65, 65), rng.randf_range(-65, 65))
 				_ground_detail(biome, second, seed + 7)
@@ -229,6 +229,9 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 	# used by run.gd's push_out(), hits_obs(), and enemy movement.
 	for obstacle in obstacles:
 		var biome: int = int(obstacle.b)
+		if obstacle.get("scenery", false):
+			_place(biome, obstacle.pos, int(obstacle.pos.x + obstacle.pos.y))
+			continue
 		var radius: float = float(obstacle.r) * S
 		var base := _p(obstacle.pos)
 		var height: float = maxf(9.0, radius * 4.0)

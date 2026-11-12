@@ -189,8 +189,8 @@ func gen_bio() -> void:
 	for seed in seeds:
 		areas.append({"n": Data.BIOMES[seed.b].name, "pos": seed.pos, "b": seed.b})
 
-func add_obs(p: Vector2, r: float) -> void:
-	var o := {"pos": p, "r": r, "b": bio_at(p)}
+func add_obs(p: Vector2, r: float, scenery: bool = false) -> void:
+	var o := {"pos": p, "r": r, "b": bio_at(p), "scenery": scenery}
 	obs.append(o)
 	var k := Vector2i(int(p.x / 200.0), int(p.y / 200.0))
 	if not og.has(k): og[k] = []
@@ -225,6 +225,24 @@ func obs_ok(p: Vector2) -> bool:
 	return p.distance_to(R.fc) > 600.0 and p.distance_to(R.cpos) < R.cr + 100.0 and p.x > 40 and p.y > 40 and p.x < WORLD - 40 and p.y < WORLD - 40
 
 func gen_obs() -> void:
+	# Solid scenery uses the SAME collision grid as boulders and other obstacles.
+	# Keep clearings, miniboss arenas, and spawn/patrol points traversable.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 614827
+	for gy in 45:
+		for gx in 45:
+			if rng.randf() > 0.46:
+				continue
+			var p := Vector2((float(gx) + 0.2 + rng.randf() * 0.6) * 200.0, (float(gy) + 0.2 + rng.randf() * 0.6) * 200.0)
+			if not obs_ok(p):
+				continue
+			var clear := true
+			for nearby in near_obs(p):
+				if p.distance_to(nearby.pos) < float(nearby.r) + 60.0:
+					clear = false
+					break
+			if clear:
+				add_obs(p, randf_range(19.0, 30.0), true)
 	for i in 90:
 		var p: Vector2 = R.cpos + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * R.cr
 		var dir := randf() * TAU

@@ -155,13 +155,13 @@ func _ground_detail(b: int, point: Vector2, seed: int) -> void:
 		1:
 			_add("sphere", Color("#e0f0f7"), pos + Vector3(0, 0.4, 0), Vector3(13 * size, 2, 10 * size), rot, 1)
 			if seed % 3 == 0:
-				_add("cone", Color("#a4d7ed"), pos + Vector3(4, 4, 2), Vector3(4, 8, 4), rot, 3)
+				_add("cone", Color("#a4d7ed"), pos + Vector3(4, 4, 2), Vector3(2, 2, 2), rot, 3)
 		2:
 			_add("cone", Color("#aa9155"), pos + Vector3(0, 2, 0), Vector3(4 * size, 4, 4 * size), rot, 1)
 			if seed % 4 == 0:
 				_add("sphere", Color("#92794d"), pos + Vector3(5, 1, 2), Vector3(7, 2, 5), rot, 1)
 			if seed % 11 == 0:
-				_add("cylinder", Color("#548260"), pos + Vector3(-5, 4, 0), Vector3(3, 8, 3), rot, 1)
+				_add("cylinder", Color("#548260"), pos + Vector3(-5, 4, 0), Vector3(2, 2, 2), rot, 1)
 		3:
 			_add("box", Color("#46566a"), pos + Vector3(0, 0.3, 0), Vector3(9 * size, 0.6, 7 * size), rot, 3)
 			if seed % 4 == 0:
@@ -177,7 +177,7 @@ func _ground_detail(b: int, point: Vector2, seed: int) -> void:
 		5:
 			_add("sphere", Color("#55464a"), pos + Vector3(0, 0.6, 0), Vector3(11 * size, 1.5, 8 * size), rot, 1)
 			if seed % 3 == 0:
-				_add("cone", Color("#302d34"), pos + Vector3(5, 3, 0), Vector3(5, 6, 5), rot, 1)
+				_add("cone", Color("#302d34"), pos + Vector3(5, 3, 0), Vector3(3, 2, 3), rot, 1)
 			if seed % 9 == 0:
 				_add("box", Color("#e65c34"), pos + Vector3(-4, 0.3, 2), Vector3(7, 0.6, 2), rot, 3, true)
 
@@ -238,6 +238,8 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 			else:
 				_place(biome, obstacle.pos, int(obstacle.pos.x + obstacle.pos.y))
 			continue
+		# Every blocking mesh is placed directly at its gameplay footprint.
+		# The radius belongs to THIS prop, not the ground tile.
 		var radius: float = float(obstacle.r) * S
 		var base := _p(obstacle.pos)
 		var height: float = maxf(9.0, radius * 4.0)

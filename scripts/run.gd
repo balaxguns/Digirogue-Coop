@@ -314,6 +314,13 @@ func gen_map() -> void:
 		var heal_pos: Vector2 = area.pos + Vector2(210, 0)
 		camps.append({"pos": heal_pos, "used": false, "w": 0.0})
 		chests.append({"pos": area.pos + Vector2(-210, 0), "open": false, "mon": false})
+	# One massive volcano rises above the Ash Volcano biome; the crater is
+	# scenery, but its base is an actual gameplay obstacle.
+	for area in areas:
+		if int(area.b) == 5:
+			var volcano_pos: Vector2 = area.pos + Vector2(850, 350)
+			if obs_ok(volcano_pos):
+				add_obs(volcano_pos, 135.0, true)
 	# Obstacle placement respects reserved paths and encounter landmarks.
 	gen_obs()
 	for i in 18:

@@ -69,7 +69,7 @@ func _sync_terrain() -> void:
 	var target := Vector2i(maxi(1, int(viewport_size.x)), maxi(1, int(viewport_size.y)))
 	if terrain_view.size != target:
 		terrain_view.size = target
-	terrain_world.call("follow", P.pos, viewport_size.y)
+	terrain_world.call("follow", cam.get_screen_center_position(), viewport_size.y)
 
 func nm() -> String:
 	return Data.ROSTER[P.line].stages[P.stage]
@@ -1162,7 +1162,7 @@ func _draw() -> void:
 	var view := Rect2(P.pos - vp / 2.0 - Vector2(80, 80), vp + Vector2(160, 160))
 	if R.mode == "night":
 		# The 3D terrain is rendered at the same gameplay world coordinates.
-		var center: Vector2 = P.pos
+		var center: Vector2 = cam.get_screen_center_position()
 		draw_texture_rect(terrain_view.get_texture(), Rect2(center - vp * 0.5, vp), false)
 		draw_arc(R.fc, 440.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)
 		draw_arc(R.fc, 330.0, 0.0, TAU, 48, Color(0.7, 0.42, 1.0, 0.35), 3.0)

@@ -187,6 +187,7 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 			var distance: float = 380.0 + float((i * 193 + biome * 61) % 1200)
 			var point: Vector2 = area.pos + Vector2.from_angle(angle) * distance
 			point = point.clamp(Vector2(100, 100), Vector2(8900, 8900))
+			# Tall landmarks remain visual; their bases are outside reserved arenas.
 			_place(biome, point, i)
 		# The biome's primary digital landmark: a pulsing data obelisk.
 		var anchor: Vector2 = area.pos + Vector2(0, -260)
@@ -224,17 +225,37 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 			if seed % 4 != 0:
 				var second := point + Vector2(rng.randf_range(-65, 65), rng.randf_range(-65, 65))
 				_ground_detail(biome, second, seed + 7)
-	# Rock obstacles use the gameplay's real collision positions, so no decorative
-	# boulder can imply an impassable wall where none exists.
+	# Solid scenery is generated ONLY from the same obstacle coordinates
+	# used by run.gd's push_out(), hits_obs(), and enemy movement.
 	for obstacle in obstacles:
 		var biome: int = int(obstacle.b)
 		var radius: float = float(obstacle.r) * S
-		if biome == 1:
-			_add("cone", Color("#b7d8e7"), _p(obstacle.pos, radius), Vector3(radius * 1.5, radius * 2.0, radius * 1.5), 0, 1)
-		elif biome == 5:
-			_add("cone", Color("#423638"), _p(obstacle.pos, radius), Vector3(radius * 1.5, radius * 2.0, radius * 1.5), 0, 1)
-		else:
-			_add("sphere", Color("#66645b") if biome != 3 else Color("#68788a"), _p(obstacle.pos, radius * 0.6), Vector3(radius * 1.8, radius * 1.2, radius * 1.8), 0, 1)
+		var base := _p(obstacle.pos)
+		var height: float = maxf(9.0, radius * 4.0)
+		match biome:
+			0: # Impassable old-growth trunks, roots and layered crowns.
+				_add("cylinder", Color("#534338"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.4, height, radius * 1.4), 0, 1)
+				for layer in 3:
+					var tier: float = float(layer)
+					_add("cone", Color("#31523d").lightened(tier * 0.07), base + Vector3(0, height * (0.9 + tier * 0.3), 0), Vector3(radius * (4.0 - tier * 0.65), height * 0.7, radius * (4.0 - tier * 0.65)), 0, 1)
+			1: # Large frozen boulders and ice-coated peaks.
+				_add("cone", Color("#9fc5d9"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.8, height, radius * 1.8), 0, 1)
+				_add("cone", Color("#e6f5fc"), base + Vector3(0, height * 0.93, 0), Vector3(radius * 1.15, height * 0.38, radius * 1.15), 0, 1)
+			2: # Solid sandstone and tall cactus stems.
+				if int(obstacle.pos.x) % 3 == 0:
+					_add("cylinder", Color("#528366"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.4, height, radius * 1.4), 0, 1)
+					_add("sphere", Color("#6c9c72"), base + Vector3(0, height, 0), Vector3(radius * 1.4, radius, radius * 1.4), 0, 1)
+				else:
+					_add("box", Color("#b28d63"), base + Vector3(0, height * 0.4, 0), Vector3(radius * 1.8, height * 0.8, radius * 1.8), 0, 2)
+			3: # Solid ruined pillars and machinery housings.
+				_add("box", Color("#68798b"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.7, height, radius * 1.7), 0, 2)
+				_add("box", Color("#3bd6f2"), base + Vector3(0, height * 0.8, radius * 0.85), Vector3(radius, height * 0.15, 0.5), 0, 3, true)
+			4: # Mangrove trunks with thick roots.
+				_add("cylinder", Color("#435c4d"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.4, height, radius * 1.4), 0, 1)
+				_add("sphere", Color("#456e5b"), base + Vector3(0, height * 1.15, 0), Vector3(radius * 4, height * 0.8, radius * 4), 0, 1)
+			5: # Solid volcanic basalt spires.
+				_add("cone", Color("#3c3336"), base + Vector3(0, height * 0.5, 0), Vector3(radius * 1.8, height, radius * 1.8), 0, 1)
+				_add("cone", Color("#a9533d"), base + Vector3(0, height * 0.95, 0), Vector3(radius * 0.8, height * 0.2, radius * 0.8), 0, 3)
 	for key in groups:
 		var g: Dictionary = groups[key]
 		var transforms: Array = g.items

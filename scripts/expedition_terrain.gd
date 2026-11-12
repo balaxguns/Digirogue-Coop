@@ -119,7 +119,7 @@ func rebuild(biomes: PackedByteArray, obstacles: Array, landmarks: Array) -> voi
 	for b in 6:
 		_batch(trunk_mesh, trunk_colors[b], trunks[b])
 		_batch(crown_mesh, crown_colors[b], crowns[b])
-	digital_props.call("populate", landmarks, obstacles)
+	digital_props.call("populate", landmarks, obstacles, biomes)
 
 func follow(world_center: Vector2, viewport_height: float) -> void:
 	camera.position = _position(world_center, 550.0)

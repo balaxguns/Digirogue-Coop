@@ -44,9 +44,10 @@ var terrain_camera: Camera3D
 var terrain_root: Node3D
 var terrain_props: Node3D
 var terrain_actors: Node3D
-var actor_player: MeshInstance3D
-var actor_boss: MeshInstance3D
-var actor_mobs: MultiMeshInstance3D
+var actor_player: Sprite3D
+var actor_boss: Sprite3D
+var actor_mobs: Node3D
+var mob_sprites: Array[Sprite3D] = []
 var actor_shots: MultiMeshInstance3D
 var actor_chests: MultiMeshInstance3D
 var actor_drops: MultiMeshInstance3D
@@ -107,28 +108,38 @@ func _actor_material(color: Color) -> StandardMaterial3D:
 	mat.roughness = 0.72
 	return mat
 
+func _actor_sprite_texture() -> Texture2D:
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	for y in 64:
+		for x in 64:
+			var d := Vector2(x - 31.5, y - 31.5).length()
+			if d <= 29.0:
+				img.set_pixel(x, y, Color.WHITE if d < 25.0 else Color("#263244"))
+	return ImageTexture.create_from_image(img)
+
+func _new_actor_sprite(tint: Color) -> Sprite3D:
+	var sprite := Sprite3D.new()
+	sprite.texture = _actor_sprite_texture()
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.shaded = false
+	sprite.no_depth_test = false
+	sprite.modulate = tint
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	terrain_actors.add_child(sprite)
+	return sprite
+
 func _build_3d_actors() -> void:
+	# Flat 2D sprites live INSIDE the 3D scene and share its camera and coordinates.
+	actor_player = _new_actor_sprite(Color("#66dfff"))
+	actor_boss = _new_actor_sprite(Color("#ff685f"))
+	actor_mobs = Node3D.new()
+	terrain_actors.add_child(actor_mobs)
 	var body_mesh := SphereMesh.new()
 	body_mesh.radius = 1.0
 	body_mesh.height = 2.0
 	body_mesh.radial_segments = 12
 	body_mesh.rings = 6
-	actor_player = MeshInstance3D.new()
-	actor_player.mesh = body_mesh
-	actor_player.material_override = _actor_material(Color("#66dfff"))
-	terrain_actors.add_child(actor_player)
-	actor_boss = MeshInstance3D.new()
-	actor_boss.mesh = body_mesh
-	actor_boss.material_override = _actor_material(Color("#ff685f"))
-	terrain_actors.add_child(actor_boss)
-	actor_mobs = MultiMeshInstance3D.new()
-	var mob_mesh := MultiMesh.new()
-	mob_mesh.transform_format = MultiMesh.TRANSFORM_3D
-	mob_mesh.mesh = body_mesh
-	mob_mesh.use_colors = true
-	mob_mesh.instance_count = 0
-	actor_mobs.multimesh = mob_mesh
-	terrain_actors.add_child(actor_mobs)
 	actor_shots = MultiMeshInstance3D.new()
 	var shot_mesh := MultiMesh.new()
 	shot_mesh.transform_format = MultiMesh.TRANSFORM_3D
@@ -164,22 +175,27 @@ func _sync_3d_actors() -> void:
 	if not active:
 		return
 	var player_radius: float = (P.r + P.stage * 3.0) * TERRAIN_SCALE
-	actor_player.scale = Vector3.ONE * player_radius
+	actor_player.pixel_size = player_radius * 2.0 / 64.0
 	actor_player.position = _world3(P.pos, player_radius)
 	actor_player.visible = not P.downed
 	actor_boss.visible = boss != null
 	if boss != null:
 		var boss_radius: float = float(boss.r) * TERRAIN_SCALE
-		actor_boss.scale = Vector3.ONE * boss_radius
+		actor_boss.pixel_size = boss_radius * 2.0 / 64.0
 		actor_boss.position = _world3(boss.pos, boss_radius)
-	var mm: MultiMesh = actor_mobs.multimesh
-	mm.instance_count = mobs.size()
-	for i in mobs.size():
+	while mob_sprites.size() < mobs.size():
+		var sprite := _new_actor_sprite(Color("#b48de3"))
+		mob_sprites.append(sprite)
+	for i in mob_sprites.size():
+		var sprite: Sprite3D = mob_sprites[i]
+		sprite.visible = i < mobs.size()
+		if i >= mobs.size():
+			continue
 		var enemy: Dictionary = mobs[i]
 		var radius: float = float(enemy.r) * TERRAIN_SCALE
-		var pos: Vector3 = _world3(enemy.pos, radius)
-		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * radius), pos))
-		mm.set_instance_color(i, Color("#e6a968") if enemy.get("el", false) else Color("#b48de3"))
+		sprite.pixel_size = radius * 2.0 / 64.0
+		sprite.position = _world3(enemy.pos, radius + maxf(0.0, float(enemy.up)) * TERRAIN_SCALE)
+		sprite.modulate = Color("#e6a968") if enemy.get("mini", false) else Color("#b48de3")
 	var sm: MultiMesh = actor_shots.multimesh
 	sm.instance_count = shots.size()
 	for i in shots.size():

@@ -218,6 +218,9 @@ func populate(landmarks: Array, obstacles: Array, biomes: PackedByteArray) -> vo
 			var biome: int = int(biomes[by * 90 + bx])
 			var seed: int = gy * 1009 + gx * 83 + biome * 31
 			_ground_detail(biome, point, seed)
+			# Larger canopy, glacial, ruin and volcanic silhouettes between landmarks.
+			if seed % 3 == 0:
+				_place(biome, point + Vector2(45, -40), seed)
 			if seed % 4 != 0:
 				var second := point + Vector2(rng.randf_range(-65, 65), rng.randf_range(-65, 65))
 				_ground_detail(biome, second, seed + 7)

@@ -12,12 +12,14 @@ var zoom := 150.0
 var yaw := 0.7
 var pitch := 0.9
 var zones: Array[Vector3] = []
+var embedded_mode := false
 
 func _ready() -> void:
 	rng.seed = 478921
 	_build_world()
 	_build_camera()
-	_build_legend()
+	if not embedded_mode:
+		_build_legend()
 
 func _mat(color: Color, glow: bool = false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -101,9 +103,10 @@ func _build_world() -> void:
 		var height := rng.randf_range(1.5, 5.0)
 		_cylinder(p + Vector3(0, height * 0.5, 0), rng.randf_range(0.25, 0.8), height, Color("#77734a") if i % 3 else Color("#a0995e"), 0.05)
 	# Sparse rocky placeholder obstacles, deliberately simple.
-	for i in 95:
-		var p := Vector3(rng.randf_range(-1120, 1120), 0, rng.randf_range(-1120, 1120))
-		_box(p + Vector3(0, 3, 0), Vector3(8, 6, 8), Color("#77716c"), rng.randf_range(0, TAU))
+	if not embedded_mode:
+		for i in 95:
+			var p := Vector3(rng.randf_range(-1120, 1120), 0, rng.randf_range(-1120, 1120))
+			_box(p + Vector3(0, 3, 0), Vector3(8, 6, 8), Color("#77716c"), rng.randf_range(0, TAU))
 
 func _build_zone(center: Vector3, kind: int) -> void:
 	_cylinder(center + Vector3(0, 0.3, 0), ZONE_RADIUS, 0.65, ZONE_COLORS[kind])

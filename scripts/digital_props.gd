@@ -23,31 +23,65 @@ func _material(color: Color, pattern: int = 0, glow: bool = false) -> StandardMa
 		return materials[key]
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
-	m.roughness = 0.85
-	# Procedurally generated textured surfaces: no external files or UV dependencies.
-	var noise := FastNoiseLite.new()
-	noise.seed = 2391 + pattern * 31
-	noise.frequency = 0.09 if pattern == 0 else 0.18
-	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-	for y in 64:
-		for x in 64:
-			var n: float = noise.get_noise_2d(float(x), float(y))
-			var variation: float = 0.79 + n * 0.23
-			if pattern == 2:
-				var seam: bool = (y % 15 == 0) or (x % 22 == 0 and int(y / 15) % 2 == 0)
-				if seam:
-					variation *= 0.48
-			elif pattern == 3 and (x % 12 == 0 or y % 12 == 0):
-				variation *= 1.35
-			image.set_pixel(x, y, Color(clampf(variation, 0.1, 1.0), clampf(variation, 0.1, 1.0), clampf(variation, 0.1, 1.0)))
-	var tex := ImageTexture.create_from_image(image)
-	m.albedo_texture = tex
+	m.roughness = 0.93 if pattern == 1 else (0.48 if pattern == 2 else 0.64)
+	m.metallic = 0.48 if pattern == 2 else (0.12 if pattern == 3 else 0.0)
+	# Tileable, layered procedural surface color and fine bump maps.
+	# Material instances are shared across all MultiMesh props of a type.
+	var coarse := FastNoiseLite.new()
+	coarse.seed = 2391 + pattern * 31
+	coarse.frequency = 0.038
+	coarse.fractal_type = FastNoiseLite.FRACTAL_FBM
+	coarse.fractal_octaves = 4
+	var fine := FastNoiseLite.new()
+	fine.seed = 8731 + pattern * 97
+	fine.frequency = 0.19
+	fine.fractal_type = FastNoiseLite.FRACTAL_FBM
+	var image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+	var heights := PackedFloat32Array()
+	heights.resize(128 * 128)
+	for y in 128:
+		for x in 128:
+			var large: float = coarse.get_noise_2d(float(x), float(y))
+			var grain: float = fine.get_noise_2d(float(x), float(y))
+			var v: float = 0.82 + large * 0.25 + grain * 0.13
+			match pattern:
+				1: # Bark, stone and organic fibers.
+					var fiber: float = sin(float(x) * 0.63 + large * 9.0)
+					v += fiber * 0.085
+					if grain > 0.28:
+						v *= 0.78
+				2: # Aged panelwork with seams, scratches and oxidized joints.
+					var seam: bool = y % 32 < 2 or (x % 38 < 2 and (int(y / 32) % 2 == 0))
+					if seam:
+						v *= 0.43
+					if absf(grain) > 0.35:
+						v *= 0.82
+				3: # Digital mineral with luminous traces.
+					if x % 24 < 2 or y % 28 < 2:
+						v *= 1.24
+					v += maxf(0.0, grain) * 0.2
+			v = clampf(v, 0.15, 1.0)
+			heights[y * 128 + x] = v
+			image.set_pixel(x, y, Color(v, v * (0.98 + grain * 0.025), v * (0.96 + large * 0.04), 1.0))
+	var bump := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+	for y in 128:
+		for x in 128:
+			var left: float = heights[y * 128 + ((x + 127) % 128)]
+			var right: float = heights[y * 128 + ((x + 1) % 128)]
+			var up: float = heights[((y + 127) % 128) * 128 + x]
+			var down: float = heights[((y + 1) % 128) * 128 + x]
+			var normal := Vector3((left - right) * 2.2, (up - down) * 2.2, 1.0).normalized()
+			bump.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
+	m.albedo_texture = ImageTexture.create_from_image(image)
+	m.normal_enabled = true
+	m.normal_texture = ImageTexture.create_from_image(bump)
+	m.normal_scale = 0.75
 	m.uv1_triplanar = true
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if glow:
 		m.emission_enabled = true
 		m.emission = color
-		m.emission_energy_multiplier = 1.4
+		m.emission_energy_multiplier = 1.65
 	materials[key] = m
 	return m
 
@@ -63,21 +97,21 @@ func _mesh(shape: String) -> Mesh:
 			cone.top_radius = 0.05
 			cone.bottom_radius = 0.5
 			cone.height = 1.0
-			cone.radial_segments = 7
+			cone.radial_segments = 20
 			mesh = cone
 		"cylinder":
 			var cyl := CylinderMesh.new()
 			cyl.top_radius = 0.5
 			cyl.bottom_radius = 0.5
 			cyl.height = 1.0
-			cyl.radial_segments = 8
+			cyl.radial_segments = 20
 			mesh = cyl
 		"sphere":
 			var sphere := SphereMesh.new()
 			sphere.radius = 0.5
 			sphere.height = 1.0
-			sphere.radial_segments = 9
-			sphere.rings = 5
+			sphere.radial_segments = 24
+			sphere.rings = 14
 			mesh = sphere
 		_:
 			mesh = BoxMesh.new()
